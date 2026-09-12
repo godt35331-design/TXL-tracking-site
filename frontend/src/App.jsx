@@ -17,30 +17,171 @@ const WS_BASE = import.meta.env.VITE_WS_BASE ||
     ? 'ws://127.0.0.1:5000' 
     : `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}`);
 
+// Comprehensive database of all 50 US States + DC with accurate coordinates and logistics hubs
+const US_STATES_DATA = {
+  // === SOUTH & SOUTHEAST ===
+  'TX': { name: 'Dallas/Fort Worth & Houston', stateName: 'Texas', region: 'South', coords: [32.8998, -97.0403], hub: 'DFW' },
+  'FL': { name: 'Miami Americas Gateway / Orlando', stateName: 'Florida', region: 'South', coords: [25.7959, -80.2870], hub: 'MIA', note: 'Americas Gateway' },
+  'GA': { name: 'Atlanta Hartsfield', stateName: 'Georgia', region: 'South', coords: [33.6407, -84.4277], hub: 'ATL' },
+  'NC': { name: 'Charlotte / Raleigh', stateName: 'North Carolina', region: 'South', coords: [35.2144, -80.9473], hub: 'CLT' },
+  'TN': { name: 'Nashville / Memphis', stateName: 'Tennessee', region: 'South', coords: [36.1263, -86.6774], hub: 'BNA' },
+  'VA': { name: 'Richmond / Norfolk', stateName: 'Virginia', region: 'South', coords: [37.5052, -77.3197], hub: 'RIC' },
+  'KY': { name: 'Cincinnati/Northern KY Hub', stateName: 'Kentucky', region: 'South', coords: [39.0488, -84.6678], hub: 'CVG', note: 'DHL Americas Super-Hub' },
+  'SC': { name: 'Charleston / Columbia', stateName: 'South Carolina', region: 'South', coords: [32.8986, -80.0405], hub: 'CHS' },
+  'AL': { name: 'Birmingham', stateName: 'Alabama', region: 'South', coords: [33.5629, -86.7535], hub: 'BHM' },
+  'LA': { name: 'New Orleans Armstrong', stateName: 'Louisiana', region: 'South', coords: [29.9911, -90.2592], hub: 'MSY' },
+  'OK': { name: 'Oklahoma City Will Rogers', stateName: 'Oklahoma', region: 'South', coords: [35.3931, -97.6007], hub: 'OKC' },
+  'AR': { name: 'Little Rock Clinton', stateName: 'Arkansas', region: 'South', coords: [34.7294, -92.2243], hub: 'LIT' },
+  'MS': { name: 'Jackson Medgar Evers', stateName: 'Mississippi', region: 'South', coords: [32.3112, -90.0759], hub: 'JAN' },
+  'WV': { name: 'Charleston Yeager', stateName: 'West Virginia', region: 'South', coords: [38.3731, -81.5932], hub: 'CRW' },
+
+  // === MIDWEST & GREAT LAKES ===
+  'IL': { name: 'Chicago O\'Hare', stateName: 'Illinois', region: 'Midwest', coords: [41.9742, -87.9073], hub: 'ORD' },
+  'OH': { name: 'Columbus / Cleveland', stateName: 'Ohio', region: 'Midwest', coords: [39.9980, -82.8919], hub: 'CMH' },
+  'MI': { name: 'Detroit Metro', stateName: 'Michigan', region: 'Midwest', coords: [42.2162, -83.3554], hub: 'DTW' },
+  'IN': { name: 'Indianapolis Hub', stateName: 'Indiana', region: 'Midwest', coords: [39.7173, -86.2944], hub: 'IND' },
+  'WI': { name: 'Milwaukee Mitchell', stateName: 'Wisconsin', region: 'Midwest', coords: [42.9472, -87.8966], hub: 'MKE' },
+  'MN': { name: 'Minneapolis / St. Paul', stateName: 'Minnesota', region: 'Midwest', coords: [44.8848, -93.2223], hub: 'MSP' },
+  'MO': { name: 'Kansas City / St. Louis', stateName: 'Missouri', region: 'Midwest', coords: [39.2976, -94.7139], hub: 'MCI' },
+  'IA': { name: 'Des Moines', stateName: 'Iowa', region: 'Midwest', coords: [41.5340, -93.6631], hub: 'DSM' },
+  'KS': { name: 'Wichita Eisenhower', stateName: 'Kansas', region: 'Midwest', coords: [37.6499, -97.4331], hub: 'ICT' },
+  'NE': { name: 'Omaha Eppley', stateName: 'Nebraska', region: 'Midwest', coords: [41.3025, -95.8941], hub: 'OMA' },
+  'ND': { name: 'Fargo Hector', stateName: 'North Dakota', region: 'Midwest', coords: [46.9207, -96.8158], hub: 'FAR' },
+  'SD': { name: 'Sioux Falls', stateName: 'South Dakota', region: 'Midwest', coords: [43.5814, -96.7417], hub: 'FSD' },
+
+  // === NORTHEAST & MID-ATLANTIC ===
+  'NY': { name: 'New York City / JFK', stateName: 'New York', region: 'Northeast', coords: [40.6413, -73.7781], hub: 'JFK' },
+  'PA': { name: 'Philadelphia / Pittsburgh', stateName: 'Pennsylvania', region: 'Northeast', coords: [39.8744, -75.2424], hub: 'PHL' },
+  'NJ': { name: 'Newark / Jersey City', stateName: 'New Jersey', region: 'Northeast', coords: [40.6895, -74.1745], hub: 'EWR' },
+  'MA': { name: 'Boston Logan', stateName: 'Massachusetts', region: 'Northeast', coords: [42.3656, -71.0096], hub: 'BOS' },
+  'MD': { name: 'Baltimore / BWI', stateName: 'Maryland', region: 'Northeast', coords: [39.1774, -76.6684], hub: 'BWI' },
+  'CT': { name: 'Hartford / Bradley', stateName: 'Connecticut', region: 'Northeast', coords: [41.9388, -72.6832], hub: 'BDL' },
+  'RI': { name: 'Providence / Green', stateName: 'Rhode Island', region: 'Northeast', coords: [41.7240, -71.4282], hub: 'PVD' },
+  'NH': { name: 'Manchester / Boston', stateName: 'New Hampshire', region: 'Northeast', coords: [42.9345, -71.4371], hub: 'MHT' },
+  'VT': { name: 'Burlington', stateName: 'Vermont', region: 'Northeast', coords: [44.4730, -73.1503], hub: 'BTV' },
+  'ME': { name: 'Portland Jetport', stateName: 'Maine', region: 'Northeast', coords: [43.6462, -70.3093], hub: 'PWM' },
+  'DE': { name: 'Wilmington / New Castle', stateName: 'Delaware', region: 'Northeast', coords: [39.6787, -75.6065], hub: 'ILG' },
+  'DC': { name: 'Washington D.C. / Dulles', stateName: 'District of Columbia', region: 'Northeast', coords: [38.9531, -77.4565], hub: 'IAD' },
+
+  // === WEST & PACIFIC ===
+  'CA': { name: 'Los Angeles / San Francisco', stateName: 'California', region: 'West', coords: [33.9416, -118.4085], hub: 'LAX' },
+  'WA': { name: 'Seattle/Tacoma', stateName: 'Washington', region: 'West', coords: [47.4502, -122.3088], hub: 'SEA' },
+  'CO': { name: 'Denver International', stateName: 'Colorado', region: 'West', coords: [39.8561, -104.6737], hub: 'DEN' },
+  'AZ': { name: 'Phoenix Sky Harbor', stateName: 'Arizona', region: 'West', coords: [33.4352, -112.0101], hub: 'PHX' },
+  'NV': { name: 'Las Vegas Harry Reid', stateName: 'Nevada', region: 'West', coords: [36.0840, -115.1537], hub: 'LAS' },
+  'OR': { name: 'Portland International', stateName: 'Oregon', region: 'West', coords: [45.5898, -122.5951], hub: 'PDX' },
+  'UT': { name: 'Salt Lake City', stateName: 'Utah', region: 'West', coords: [40.7899, -111.9791], hub: 'SLC' },
+  'NM': { name: 'Albuquerque Sunport', stateName: 'New Mexico', region: 'West', coords: [35.0402, -106.6092], hub: 'ABQ' },
+  'ID': { name: 'Boise Air Terminal', stateName: 'Idaho', region: 'West', coords: [43.5644, -116.2228], hub: 'BOI' },
+  'MT': { name: 'Billings Logan', stateName: 'Montana', region: 'West', coords: [45.8077, -108.5429], hub: 'BIL' },
+  'WY': { name: 'Cheyenne / Casper', stateName: 'Wyoming', region: 'West', coords: [42.9080, -106.4645], hub: 'CPR' },
+  'AK': { name: 'Anchorage Cargo Gateway', stateName: 'Alaska', region: 'West', coords: [61.1760, -149.9901], hub: 'ANC', note: 'Pacific Air Hub' },
+  'HI': { name: 'Honolulu International', stateName: 'Hawaii', region: 'West', coords: [21.3187, -157.9225], hub: 'HNL' }
+};
+
+// Aliases and coordinates mapping for both 2-letter state codes and 3-letter airport codes
 const GPS_COORDINATES = {
-  'CHI': [41.8781, -87.6298], // Chicago
-  'KC':  [39.0997, -94.5786], // Kansas City
-  'DEN': [39.7392, -104.9903], // Denver
-  'SEA': [47.6062, -122.3321], // Seattle
-  'NY':  [40.7128, -74.0060], // New York
-  'CLE': [41.4993, -81.6944], // Cleveland
-  'LA':  [34.0522, -118.2437], // Los Angeles
-  'MIA': [25.7617, -80.1918], // Miami
-  'ATL': [33.7490, -84.3880], // Atlanta
-  'PHX': [33.4484, -112.0740], // Phoenix
-  'SF':  [37.7749, -122.4194], // San Francisco
-  'SIN': [1.3521, 103.8198],    // Singapore
-  'BER': [52.5200, 13.4050],    // Berlin
-  'JFK': [40.6413, -73.7781],   // New York JFK
-  'LHR': [51.4700, -0.4543],    // London Heathrow
-  'HND': [35.5494, 139.7798],   // Tokyo Haneda
-  'LAX': [33.9416, -118.4085],  // Los Angeles LAX
-  'DXB': [25.2532, 55.3657],    // Dubai
-  'BOM': [19.0896, 72.8656],    // Mumbai
-  'SZX': [22.6393, 113.8107],   // Shenzhen SZX
-  'LEJ': [51.4239, 12.2364],    // Leipzig DHL Global Air Hub
-  'CVG': [39.0488, -84.6678],   // Cincinnati DHL Americas Hub
-  'FRA': [50.0379, 8.5622]      // Frankfurt Cargo Hub
+  // Map all 50 states + DC
+  ...Object.fromEntries(Object.entries(US_STATES_DATA).map(([code, item]) => [code, item.coords])),
+  // Airport & legacy 3-letter code aliases for seamless backwards compatibility
+  'DFW': [32.8998, -97.0403],
+  'IAH': [29.9902, -95.3368],
+  'MIA': [25.7959, -80.2870],
+  'MCO': [28.4312, -81.3081],
+  'TPA': [27.9772, -82.5311],
+  'ATL': [33.6407, -84.4277],
+  'CLT': [35.2144, -80.9473],
+  'RDU': [35.8801, -78.7880],
+  'BNA': [36.1263, -86.6774],
+  'MEM': [35.0424, -89.9767],
+  'CVG': [39.0488, -84.6678],
+  'ORD': [41.9742, -87.9073],
+  'CHI': [41.8781, -87.6298],
+  'CLE': [41.4094, -81.8547],
+  'CMH': [39.9980, -82.8919],
+  'DTW': [42.2162, -83.3554],
+  'IND': [39.7173, -86.2944],
+  'MKE': [42.9472, -87.8966],
+  'MSP': [44.8848, -93.2223],
+  'KC':  [39.2976, -94.7139],
+  'MCI': [39.2976, -94.7139],
+  'STL': [38.7472, -90.3599],
+  'JFK': [40.6413, -73.7781],
+  'NY':  [40.7128, -74.0060],
+  'PHL': [39.8744, -75.2424],
+  'PIT': [40.4914, -80.2329],
+  'EWR': [40.6895, -74.1745],
+  'BOS': [42.3656, -71.0096],
+  'BWI': [39.1774, -76.6684],
+  'IAD': [38.9531, -77.4565],
+  'LAX': [33.9416, -118.4085],
+  'LA':  [34.0522, -118.2437],
+  'SFO': [37.6213, -122.3790],
+  'SF':  [37.7749, -122.4194],
+  'SAN': [32.7338, -117.1933],
+  'SEA': [47.4502, -122.3088],
+  'DEN': [39.8561, -104.6737],
+  'PHX': [33.4352, -112.0101],
+  'LAS': [36.0840, -115.1537],
+  'PDX': [45.5898, -122.5951],
+  'SLC': [40.7899, -111.9791],
+  'ABQ': [35.0402, -106.6092],
+  'ANC': [61.1760, -149.9901],
+  'HNL': [21.3187, -157.9225],
+  // Fallbacks for any existing seed data
+  'LEJ': [51.4239, 12.2364],
+  'FRA': [50.0379, 8.5622],
+  'BER': [52.3667, 13.5033],
+  'LHR': [51.4700, -0.4543],
+  'SIN': [1.3644, 103.9915],
+  'DXB': [25.2532, 55.3657],
+  'HND': [35.5494, 139.7798],
+  'BOM': [19.0896, 72.8656],
+  'SZX': [22.6393, 113.8107]
+};
+
+// Format helper for text inputs (e.g. "Dallas / Fort Worth, TX - DFW01")
+const formatHubLocationText = (code) => {
+  const item = US_STATES_DATA[code];
+  if (!item) {
+    // Check if code is a 3-letter alias
+    const foundState = Object.entries(US_STATES_DATA).find(([st, data]) => data.hub === code);
+    if (foundState) {
+      return `${foundState[1].name}, ${foundState[0]} - ${code}01`;
+    }
+    return `${code} Hub, USA`;
+  }
+  return `${item.name}, ${code} - ${item.hub}01`;
+};
+
+// Grouped dropdown options for all 50 US States + DC
+const renderCategorizedHubOptions = (excludeList = []) => {
+  const regions = [
+    { key: 'South', label: '🇺🇸 US South & Southeast' },
+    { key: 'Midwest', label: '🇺🇸 US Midwest & Great Lakes' },
+    { key: 'Northeast', label: '🇺🇸 US Northeast & Mid-Atlantic' },
+    { key: 'West', label: '🇺🇸 US West & Pacific' }
+  ];
+
+  return regions.map(reg => {
+    const stateCodes = Object.keys(US_STATES_DATA).filter(
+      code => US_STATES_DATA[code].region === reg.key && !excludeList.includes(code)
+    );
+    if (stateCodes.length === 0) return null;
+    return (
+      <optgroup key={reg.key} label={reg.label}>
+        {stateCodes.map(code => {
+          const item = US_STATES_DATA[code];
+          const badge = item.note ? ` [${item.note}]` : '';
+          return (
+            <option key={code} value={code}>
+              {code} — {item.stateName} ({item.name}){badge}
+            </option>
+          );
+        })}
+      </optgroup>
+    );
+  });
 };
 
 function getInterpolatedPosition(waypoints, progressPercentage) {
@@ -123,10 +264,22 @@ const LeafletMap = ({ shipment }) => {
         dashArray: '6, 8'
       }).addTo(map);
 
+      // Fit map bounds to view entire route
+      if (latlngs.length >= 2) {
+        try {
+          map.fitBounds(L.latLngBounds(latlngs), { padding: [40, 40], maxZoom: 7 });
+        } catch (err) {
+          // ignore bounds error
+        }
+      }
+
       // Plot Hub Pins
       routePoints.forEach((pt, index) => {
         const isEnd = index === routePoints.length - 1;
         const isStart = index === 0;
+        const hubInfo = US_STATES_DATA[pt.code];
+        const hubTitle = hubInfo ? `${hubInfo.name}, ${hubInfo.stateName}` : `${pt.code} Station, USA`;
+        const hubRole = isStart ? 'Origin State / Gateway' : isEnd ? 'Final Destination State' : `Transit Waypoint #${index + 1}`;
 
         const pinIcon = L.divIcon({
           html: `<div class="map-hub-pin ${isStart ? 'start' : isEnd ? 'end' : 'mid'}"><span>${pt.code}</span></div>`,
@@ -137,7 +290,7 @@ const LeafletMap = ({ shipment }) => {
 
         const marker = L.marker(pt.coords, { icon: pinIcon })
           .addTo(map)
-          .bindPopup(`<b>Hub: ${pt.code}</b><br/>Stop Index: ${index}`);
+          .bindPopup(`<b>${pt.code} — ${hubTitle}</b><br/><i>${hubRole}</i>`);
         markersRef.current.push(marker);
       });
     }
@@ -4131,16 +4284,22 @@ export default function App() {
 
                           <div className="form-double-row mt-15">
                             <div className="input-field">
-                              <label>ORIGIN HUB</label>
+                              <label>ORIGIN STATE / HUB</label>
                               <div className="origin-hub-flex-input">
-                                <select className="hub-code-select" value={formOriginCode} onChange={(e) => setFormOriginCode(e.target.value)}>
-                                  {Object.keys(GPS_COORDINATES).map(code => (
-                                    <option key={code} value={code}>{code}</option>
-                                  ))}
+                                <select 
+                                  className="hub-code-select" 
+                                  value={formOriginCode} 
+                                  onChange={(e) => {
+                                    const code = e.target.value;
+                                    setFormOriginCode(code);
+                                    setFormOrigin(formatHubLocationText(code));
+                                  }}
+                                >
+                                  {renderCategorizedHubOptions()}
                                 </select>
                                 <input 
                                   type="text" 
-                                  placeholder="Los Angeles, CA - LAX04"
+                                  placeholder="Dallas/Fort Worth, TX - DFW01"
                                   value={formOrigin}
                                   onChange={(e) => setFormOrigin(e.target.value)}
                                 />
@@ -4148,16 +4307,22 @@ export default function App() {
                             </div>
                             
                             <div className="input-field">
-                              <label>DESTINATION HUB</label>
+                              <label>DESTINATION STATE / HUB</label>
                               <div className="dest-hub-flex-input">
-                                <select className="hub-code-select" value={formDestCode} onChange={(e) => setFormDestCode(e.target.value)}>
-                                  {Object.keys(GPS_COORDINATES).map(code => (
-                                    <option key={code} value={code}>{code}</option>
-                                  ))}
+                                <select 
+                                  className="hub-code-select" 
+                                  value={formDestCode} 
+                                  onChange={(e) => {
+                                    const code = e.target.value;
+                                    setFormDestCode(code);
+                                    setFormDestination(formatHubLocationText(code));
+                                  }}
+                                >
+                                  {renderCategorizedHubOptions()}
                                 </select>
                                 <input 
                                   type="text" 
-                                  placeholder="New York City, NY - JFK01"
+                                  placeholder="Miami, FL - MIA01"
                                   value={formDestination}
                                   onChange={(e) => setFormDestination(e.target.value)}
                                 />
@@ -4431,13 +4596,8 @@ export default function App() {
                                 fontSize: '0.85rem'
                               }}
                             >
-                              <option value="">-- Add Waypoint --</option>
-                              {Object.keys(GPS_COORDINATES)
-                                .filter(code => !selectedShipmentForSim?.simulation?.waypoints?.includes(code))
-                                .map(code => (
-                                  <option key={code} value={code}>{code}</option>
-                                ))
-                              }
+                              <option value="">-- Add US State / Waypoint Hub --</option>
+                              {renderCategorizedHubOptions(selectedShipmentForSim?.simulation?.waypoints || [])}
                             </select>
                           </div>
 
