@@ -209,7 +209,7 @@ function getInterpolatedPosition(waypoints, progressPercentage) {
 }
 
 // Subcomponents: Interactive Leaflet Map Viewer
-const LeafletMap = ({ shipment }) => {
+const LeafletMap = ({ shipment, height = '350px' }) => {
   const mapContainerRef = useRef(null);
   const mapInstanceRef = useRef(null);
   const routeLineRef = useRef(null);
@@ -229,13 +229,33 @@ const LeafletMap = ({ shipment }) => {
       attribution: '© OpenStreetMap contributors'
     }).addTo(mapInstanceRef.current);
 
+    const resizeObserver = new ResizeObserver(() => {
+      mapInstanceRef.current?.invalidateSize();
+    });
+    if (mapContainerRef.current) {
+      resizeObserver.observe(mapContainerRef.current);
+    }
+
+    setTimeout(() => {
+      mapInstanceRef.current?.invalidateSize();
+    }, 200);
+
     return () => {
+      resizeObserver.disconnect();
       if (mapInstanceRef.current) {
         mapInstanceRef.current.remove();
         mapInstanceRef.current = null;
       }
     };
   }, []);
+
+  useEffect(() => {
+    if (mapInstanceRef.current) {
+      setTimeout(() => {
+        mapInstanceRef.current?.invalidateSize();
+      }, 150);
+    }
+  }, [shipment, height]);
 
   useEffect(() => {
     const map = mapInstanceRef.current;
@@ -314,8 +334,8 @@ const LeafletMap = ({ shipment }) => {
   }, [shipment, shipment.simulation.currentProgress, shipment.simulation.waypoints]);
 
   return (
-    <div style={{ height: '350px', width: '100%', borderRadius: '12px', border: '1px solid var(--border-color)', overflow: 'hidden' }}>
-      <div ref={mapContainerRef} style={{ height: '100%', width: '100%' }}></div>
+    <div className="leaflet-map-outer-wrapper" style={{ height: height, width: '100%', borderRadius: height === '100%' ? '0px' : '12px', border: height === '100%' ? 'none' : '1px solid var(--border-color)', overflow: 'hidden', display: 'flex', flex: 1 }}>
+      <div ref={mapContainerRef} style={{ height: '100%', width: '100%', minHeight: height === '100%' ? '540px' : undefined, flex: 1 }}></div>
     </div>
   );
 };
@@ -4487,37 +4507,46 @@ export default function App() {
                     <div className="sim-panel-content-split">
                       {/* Map Column */}
                       <div className="sim-panel-map-col">
-                        {selectedShipmentForSim ? (
-                          <LeafletMap shipment={selectedShipmentForSim} />
-                        ) : (
-                          <div style={{ height: '400px', backgroundColor: 'var(--card-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)', borderRadius: '8px' }}>
-                            No active shipment selected for simulation. Select a shipment from the sidebar on the right.
-                          </div>
-                        )}
-                        
-                        {/* Floating Telemetry Screen on Map */}
+                        {/* Clean Telemetry Header Bar - Placed ABOVE the map, NOT covering it */}
                         {selectedShipmentForSim && (
-                          <div className="map-sim-telemetry-badge">
-                            <span className="telemetry-title">SIMULATION TELEMETRY</span>
-                            
-                            <div className="telemetry-row">
-                              <span className="tel-lbl">Speed:</span>
-                              <span className="tel-val gold">{selectedShipmentSimVessel === 'Plane' ? '820 km/h' : selectedShipmentSimVessel === 'Ship' ? '35 km/h' : '85 km/h'}</span>
+                          <div className="sim-telemetry-top-bar">
+                            <div className="telemetry-item">
+                              <span className="tel-label">SIMULATION SPEED</span>
+                              <span className="tel-value gold">
+                                {selectedShipmentSimVessel === 'Plane' ? '820 km/h' : selectedShipmentSimVessel === 'Ship' ? '35 km/h' : '85 km/h'}
+                              </span>
                             </div>
-                            <div className="telemetry-row">
-                              <span className="tel-lbl">Coordinates:</span>
-                              <span className="tel-val">{selectedShipmentSimProgressCoords?.lat?.toFixed(4)}&deg;N, {selectedShipmentSimProgressCoords?.lng?.toFixed(4)}&deg;W</span>
+                            <div className="telemetry-item">
+                              <span className="tel-label">CURRENT COORDINATES</span>
+                              <span className="tel-value">
+                                {selectedShipmentSimProgressCoords?.lat?.toFixed(4)}°N, {Math.abs(selectedShipmentSimProgressCoords?.lng || 0).toFixed(4)}°W
+                              </span>
                             </div>
-                            <div className="telemetry-row">
-                              <span className="tel-lbl">ETA:</span>
-                              <span className="tel-val">{selectedShipmentSimEtaString}</span>
+                            <div className="telemetry-item">
+                              <span className="tel-label">ESTIMATED ETA</span>
+                              <span className="tel-value">
+                                {selectedShipmentSimEtaString}
+                              </span>
                             </div>
-                            
-                            <div className="telemetry-progress-track">
-                              <div className="telemetry-progress-fill" style={{ width: `${selectedShipmentSimProg}%` }}></div>
+                            <div className="telemetry-item progress-item">
+                              <span className="tel-label">PROGRESS ({selectedShipmentSimProg.toFixed(1)}%)</span>
+                              <div className="telemetry-progress-track">
+                                <div className="telemetry-progress-fill" style={{ width: `${selectedShipmentSimProg}%` }}></div>
+                              </div>
                             </div>
                           </div>
                         )}
+
+                        {/* Full Map Canvas - Completely covers the column without empty black space */}
+                        <div className="sim-map-canvas-container">
+                          {selectedShipmentForSim ? (
+                            <LeafletMap shipment={selectedShipmentForSim} height="100%" />
+                          ) : (
+                            <div style={{ height: '100%', minHeight: '520px', backgroundColor: 'var(--card-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)', borderRadius: '8px' }}>
+                              No active shipment selected for simulation. Select a shipment from the sidebar on the right.
+                            </div>
+                          )}
+                        </div>
                       </div>
                       
                       {/* Controller Column */}
