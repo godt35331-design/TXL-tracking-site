@@ -4503,8 +4503,9 @@ body {
 /* Split panel layout inside simulation */
 .sim-panel-content-split {
   display: grid;
-  grid-template-columns: 1.7fr 1fr;
-  min-height: 480px;
+  grid-template-columns: 1.8fr 1fr;
+  min-height: 560px;
+  align-items: stretch;
 }
 
 @media (max-width: 1024px) {
@@ -4516,101 +4517,153 @@ body {
 .sim-panel-map-col {
   position: relative;
   border-right: 1px solid rgba(255, 255, 255, 0.08);
-  display: flex;
-  flex-direction: column;
-  height: 100%;
+  width: 100%;
+  min-height: 560px;
   background: #110e0c;
   overflow: hidden;
 }
 
-/* Dedicated Telemetry Top Bar - Above map canvas, zero obstruction */
-.sim-telemetry-top-bar {
-  background: #181512;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  padding: 12px 20px;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justifyContent: space-between;
-  gap: 16px;
-  flex-shrink: 0;
-  z-index: 10;
+@media (min-width: 1025px) {
+  .sim-panel-map-col {
+    height: 100%;
+  }
 }
 
-.sim-telemetry-top-bar .telemetry-item {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.sim-telemetry-top-bar .tel-label {
-  font-size: 0.65rem;
-  font-weight: 800;
-  color: rgba(255, 255, 255, 0.5);
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-
-.sim-telemetry-top-bar .tel-value {
-  font-size: 0.88rem;
-  font-weight: 700;
-  color: #ffffff;
-  font-family: monospace;
-}
-
-.sim-telemetry-top-bar .tel-value.gold {
-  color: #FFCC00;
-}
-
-.sim-telemetry-top-bar .progress-item {
-  min-width: 150px;
-  flex: 1;
-  max-width: 240px;
-}
-
-.sim-telemetry-top-bar .telemetry-progress-track {
-  height: 6px;
-  background: rgba(255, 255, 255, 0.12);
-  border-radius: 3px;
-  overflow: hidden;
-  margin-top: 4px;
-}
-
-.sim-telemetry-top-bar .telemetry-progress-fill {
-  height: 100%;
-  background: linear-gradient(90deg, #D40511, #FFCC00);
-  border-radius: 3px;
-  transition: width 0.35s ease;
-}
-
-/* Full Map Canvas Container - Fully covers all vertical space without black gaps */
+/* Full Map Canvas Container - 100% full bleed, absolutely positioned on desktop to guarantee zero black space */
 .sim-map-canvas-container {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
   width: 100%;
   height: 100%;
-  min-height: 540px;
+  min-height: 560px;
   position: relative;
   overflow: hidden;
 }
 
+@media (min-width: 1025px) {
+  .sim-map-canvas-container {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: auto;
+  }
+}
+
 .sim-map-canvas-container .leaflet-map-outer-wrapper {
   height: 100% !important;
-  min-height: 540px;
   width: 100% !important;
-  flex: 1;
-  display: flex;
+  display: flex !important;
+  flex: 1 !important;
   border-radius: 0 !important;
   border: none !important;
 }
 
 .sim-panel-map-col .leaflet-container {
   height: 100% !important;
-  min-height: 540px;
   width: 100% !important;
-  flex: 1;
+  flex: 1 !important;
   border-radius: 0 !important;
+}
+
+/* Sidebar Telemetry Card in Simulation Controller - completely off map */
+.sim-telemetry-sidebar-card {
+  background: rgba(255, 204, 0, 0.04);
+  border: 1px solid rgba(255, 204, 0, 0.2);
+  border-radius: 8px;
+  padding: 14px;
+}
+
+.telemetry-sidebar-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.sim-status-live-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.65rem;
+  font-weight: 800;
+  color: #10b981;
+  background: rgba(16, 185, 129, 0.12);
+  padding: 2px 7px;
+  border-radius: 999px;
+  letter-spacing: 0.06em;
+}
+
+.sim-status-live-indicator .pulse-dot {
+  width: 6px;
+  height: 6px;
+  background: #10b981;
+  border-radius: 50%;
+  animation: pulse 1.6s infinite;
+}
+
+.sim-telemetry-sidebar-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.telemetry-stat-box {
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 6px;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.telemetry-stat-box.full-width {
+  grid-column: 1 / -1;
+}
+
+.stat-label {
+  font-size: 0.62rem;
+  font-weight: 800;
+  color: rgba(255, 255, 255, 0.5);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.stat-val {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #ffffff;
+}
+
+.stat-val.gold {
+  color: #FFCC00;
+}
+
+.stat-val.mono {
+  font-family: monospace;
+  font-size: 0.8rem;
+}
+
+.stat-flex-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}
+
+.telemetry-progress-track {
+  height: 6px;
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 3px;
+  overflow: hidden;
+  margin-top: 2px;
+}
+
+.telemetry-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #D40511, #FFCC00);
+  border-radius: 3px;
+  transition: width 0.35s ease;
 }
 
 /* Telemetry settings sidebar controller */

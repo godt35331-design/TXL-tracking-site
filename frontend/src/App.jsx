@@ -335,7 +335,7 @@ const LeafletMap = ({ shipment, height = '350px' }) => {
 
   return (
     <div className="leaflet-map-outer-wrapper" style={{ height: height, width: '100%', borderRadius: height === '100%' ? '0px' : '12px', border: height === '100%' ? 'none' : '1px solid var(--border-color)', overflow: 'hidden', display: 'flex', flex: 1 }}>
-      <div ref={mapContainerRef} style={{ height: '100%', width: '100%', minHeight: height === '100%' ? '540px' : undefined, flex: 1 }}></div>
+      <div ref={mapContainerRef} style={{ height: '100%', width: '100%', flex: 1 }}></div>
     </div>
   );
 };
@@ -4505,44 +4505,13 @@ export default function App() {
                     </div>
                     
                     <div className="sim-panel-content-split">
-                      {/* Map Column */}
+                      {/* Map Column - Pure 100% Map with NO boxes on or above the map */}
                       <div className="sim-panel-map-col">
-                        {/* Clean Telemetry Header Bar - Placed ABOVE the map, NOT covering it */}
-                        {selectedShipmentForSim && (
-                          <div className="sim-telemetry-top-bar">
-                            <div className="telemetry-item">
-                              <span className="tel-label">SIMULATION SPEED</span>
-                              <span className="tel-value gold">
-                                {selectedShipmentSimVessel === 'Plane' ? '820 km/h' : selectedShipmentSimVessel === 'Ship' ? '35 km/h' : '85 km/h'}
-                              </span>
-                            </div>
-                            <div className="telemetry-item">
-                              <span className="tel-label">CURRENT COORDINATES</span>
-                              <span className="tel-value">
-                                {selectedShipmentSimProgressCoords?.lat?.toFixed(4)}°N, {Math.abs(selectedShipmentSimProgressCoords?.lng || 0).toFixed(4)}°W
-                              </span>
-                            </div>
-                            <div className="telemetry-item">
-                              <span className="tel-label">ESTIMATED ETA</span>
-                              <span className="tel-value">
-                                {selectedShipmentSimEtaString}
-                              </span>
-                            </div>
-                            <div className="telemetry-item progress-item">
-                              <span className="tel-label">PROGRESS ({selectedShipmentSimProg.toFixed(1)}%)</span>
-                              <div className="telemetry-progress-track">
-                                <div className="telemetry-progress-fill" style={{ width: `${selectedShipmentSimProg}%` }}></div>
-                              </div>
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Full Map Canvas - Completely covers the column without empty black space */}
                         <div className="sim-map-canvas-container">
                           {selectedShipmentForSim ? (
                             <LeafletMap shipment={selectedShipmentForSim} height="100%" />
                           ) : (
-                            <div style={{ height: '100%', minHeight: '520px', backgroundColor: 'var(--card-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)', borderRadius: '8px' }}>
+                            <div style={{ height: '100%', minHeight: '520px', backgroundColor: 'var(--card-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)' }}>
                               No active shipment selected for simulation. Select a shipment from the sidebar on the right.
                             </div>
                           )}
@@ -4638,6 +4607,44 @@ export default function App() {
                             </div>
                           </div>
                         </div>
+
+                        {/* Dedicated Live Telemetry Card placed in sidebar */}
+                        {selectedShipmentForSim && (
+                          <div className="controller-section sim-telemetry-sidebar-card">
+                            <div className="telemetry-sidebar-header">
+                              <span className="section-label">LIVE TELEMETRY</span>
+                              <span className="sim-status-live-indicator"><span className="pulse-dot"></span> LIVE</span>
+                            </div>
+
+                            <div className="sim-telemetry-sidebar-grid">
+                              <div className="telemetry-stat-box">
+                                <span className="stat-label">SPEED</span>
+                                <span className="stat-val gold">
+                                  {selectedShipmentSimVessel === 'Plane' ? '820 km/h' : selectedShipmentSimVessel === 'Ship' ? '35 km/h' : '85 km/h'}
+                                </span>
+                              </div>
+                              <div className="telemetry-stat-box">
+                                <span className="stat-label">ESTIMATED ETA</span>
+                                <span className="stat-val">{selectedShipmentSimEtaString}</span>
+                              </div>
+                              <div className="telemetry-stat-box full-width">
+                                <span className="stat-label">COORDINATES</span>
+                                <span className="stat-val mono">
+                                  {selectedShipmentSimProgressCoords?.lat?.toFixed(4)}°N, {Math.abs(selectedShipmentSimProgressCoords?.lng || 0).toFixed(4)}°W
+                                </span>
+                              </div>
+                              <div className="telemetry-stat-box full-width">
+                                <div className="stat-flex-row">
+                                  <span className="stat-label">PROGRESS</span>
+                                  <span className="stat-val gold">{selectedShipmentSimProg.toFixed(1)}%</span>
+                                </div>
+                                <div className="telemetry-progress-track">
+                                  <div className="telemetry-progress-fill" style={{ width: `${selectedShipmentSimProg}%` }}></div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        )}
 
                         <div className="controller-section mt-15">
                           <span className="section-label">SIMULATION MODE</span>
