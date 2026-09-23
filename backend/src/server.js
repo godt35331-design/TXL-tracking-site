@@ -69,7 +69,7 @@ async function initializeServer() {
     }
   });
 
-  server.listen(PORT, () => {
+  server.listen(PORT, '0.0.0.0', () => {
     console.log(`===============================================`);
     console.log(`TXL Express Logistics Portal Backend running at port ${PORT}`);
     console.log(`WebSocket server connected at ws://localhost:${PORT}`);

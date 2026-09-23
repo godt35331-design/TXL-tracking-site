@@ -159,10 +159,12 @@ export async function sendEmail({ to, recipientName, subject, messageBody, templ
       emailHeaders['References'] = inReplyTo;
     }
 
+    const replyToAddress = process.env.REPLY_TO_EMAIL || supportEmail;
+
     const emailOptions = {
       from: fromEmail,
       to: [to],
-      replyTo: supportEmail,
+      replyTo: replyToAddress,
       subject: emailSubject,
       text: textContent,
       html: html,
