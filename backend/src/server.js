@@ -1,13 +1,10 @@
+import 'dotenv/config';
 import express from 'express';
 import http from 'http';
 import { WebSocketServer } from 'ws';
 import cors from 'cors';
-import dotenv from 'dotenv';
 import { connectDatabase } from './db/connection.js';
 import apiRouter, { setWssInstance } from './routes/api.js';
-
-// Load environment variables (.env)
-dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 5000;

@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import { Resend } from 'resend';
 
 const getResendClient = () => {
