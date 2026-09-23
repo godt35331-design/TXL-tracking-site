@@ -17,165 +17,225 @@ const WS_BASE = import.meta.env.VITE_WS_BASE ||
     ? 'ws://127.0.0.1:5000' 
     : `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}`);
 
-// Comprehensive database of all 50 US States + DC with accurate coordinates and logistics hubs
-const US_STATES_DATA = {
-  // === SOUTH & SOUTHEAST ===
-  'TX': { name: 'Dallas/Fort Worth & Houston', stateName: 'Texas', region: 'South', coords: [32.8998, -97.0403], hub: 'DFW' },
-  'FL': { name: 'Miami Americas Gateway / Orlando', stateName: 'Florida', region: 'South', coords: [25.7959, -80.2870], hub: 'MIA', note: 'Americas Gateway' },
-  'GA': { name: 'Atlanta Hartsfield', stateName: 'Georgia', region: 'South', coords: [33.6407, -84.4277], hub: 'ATL' },
-  'NC': { name: 'Charlotte / Raleigh', stateName: 'North Carolina', region: 'South', coords: [35.2144, -80.9473], hub: 'CLT' },
-  'TN': { name: 'Nashville / Memphis', stateName: 'Tennessee', region: 'South', coords: [36.1263, -86.6774], hub: 'BNA' },
-  'VA': { name: 'Richmond / Norfolk', stateName: 'Virginia', region: 'South', coords: [37.5052, -77.3197], hub: 'RIC' },
-  'KY': { name: 'Cincinnati/Northern KY Hub', stateName: 'Kentucky', region: 'South', coords: [39.0488, -84.6678], hub: 'CVG', note: 'DHL Americas Super-Hub' },
-  'SC': { name: 'Charleston / Columbia', stateName: 'South Carolina', region: 'South', coords: [32.8986, -80.0405], hub: 'CHS' },
-  'AL': { name: 'Birmingham', stateName: 'Alabama', region: 'South', coords: [33.5629, -86.7535], hub: 'BHM' },
-  'LA': { name: 'New Orleans Armstrong', stateName: 'Louisiana', region: 'South', coords: [29.9911, -90.2592], hub: 'MSY' },
-  'OK': { name: 'Oklahoma City Will Rogers', stateName: 'Oklahoma', region: 'South', coords: [35.3931, -97.6007], hub: 'OKC' },
-  'AR': { name: 'Little Rock Clinton', stateName: 'Arkansas', region: 'South', coords: [34.7294, -92.2243], hub: 'LIT' },
-  'MS': { name: 'Jackson Medgar Evers', stateName: 'Mississippi', region: 'South', coords: [32.3112, -90.0759], hub: 'JAN' },
-  'WV': { name: 'Charleston Yeager', stateName: 'West Virginia', region: 'South', coords: [38.3731, -81.5932], hub: 'CRW' },
+// Comprehensive global database of US States, US Freight Superhubs, UK Cities & Checkpoints, and International Gateways
+const GLOBAL_LOGISTICS_HUBS = {
+  // ==========================================
+  // 🇬🇧 UNITED KINGDOM — CITIES, PORTS & HUBS
+  // ==========================================
+  // --- London & Southeast ---
+  'LHR': { name: 'London Heathrow Air Cargo Superhub', stateName: 'Greater London', country: 'UK', region: 'UK-London', coords: [51.4700, -0.4543], hub: 'LHR', flag: '🇬🇧', type: 'Air Cargo Superhub' },
+  'LGW': { name: 'London Gatwick Freight Terminal', stateName: 'West Sussex / London', country: 'UK', region: 'UK-London', coords: [51.1537, -0.1821], hub: 'LGW', flag: '🇬🇧', type: 'Air Freight' },
+  'LON': { name: 'Central London Distribution Hub', stateName: 'City of London', country: 'UK', region: 'UK-London', coords: [51.5074, -0.1278], hub: 'LON', flag: '🇬🇧', type: 'Metropolitan Logistics' },
+  'STN': { name: 'London Stansted International Cargo Terminal', stateName: 'Essex', country: 'UK', region: 'UK-London', coords: [51.8860, 0.2389], hub: 'STN', flag: '🇬🇧', type: 'Express Air Cargo' },
+  'LTN': { name: 'London Luton Logistics Center', stateName: 'Bedfordshire', country: 'UK', region: 'UK-London', coords: [51.8747, -0.3683], hub: 'LTN', flag: '🇬🇧', type: 'Regional Hub' },
+  'DVR': { name: 'Port of Dover Ferry Terminal', stateName: 'Kent', country: 'UK', region: 'UK-London', coords: [51.1279, 1.3134], hub: 'DVR', flag: '🇬🇧', type: 'Channel Maritime Gateway' },
+  'SOU': { name: 'Port of Southampton Container Terminal', stateName: 'Hampshire', country: 'UK', region: 'UK-London', coords: [50.9097, -1.4044], hub: 'SOU', flag: '🇬🇧', type: 'Deep Sea Container Port' },
+  'FXT': { name: 'Port of Felixstowe Ocean Gateway', stateName: 'Suffolk', country: 'UK', region: 'UK-London', coords: [51.9540, 1.3060], hub: 'FXT', flag: '🇬🇧', type: 'Major Container Terminal' },
 
-  // === MIDWEST & GREAT LAKES ===
-  'IL': { name: 'Chicago O\'Hare', stateName: 'Illinois', region: 'Midwest', coords: [41.9742, -87.9073], hub: 'ORD' },
-  'OH': { name: 'Columbus / Cleveland', stateName: 'Ohio', region: 'Midwest', coords: [39.9980, -82.8919], hub: 'CMH' },
-  'MI': { name: 'Detroit Metro', stateName: 'Michigan', region: 'Midwest', coords: [42.2162, -83.3554], hub: 'DTW' },
-  'IN': { name: 'Indianapolis Hub', stateName: 'Indiana', region: 'Midwest', coords: [39.7173, -86.2944], hub: 'IND' },
-  'WI': { name: 'Milwaukee Mitchell', stateName: 'Wisconsin', region: 'Midwest', coords: [42.9472, -87.8966], hub: 'MKE' },
-  'MN': { name: 'Minneapolis / St. Paul', stateName: 'Minnesota', region: 'Midwest', coords: [44.8848, -93.2223], hub: 'MSP' },
-  'MO': { name: 'Kansas City / St. Louis', stateName: 'Missouri', region: 'Midwest', coords: [39.2976, -94.7139], hub: 'MCI' },
-  'IA': { name: 'Des Moines', stateName: 'Iowa', region: 'Midwest', coords: [41.5340, -93.6631], hub: 'DSM' },
-  'KS': { name: 'Wichita Eisenhower', stateName: 'Kansas', region: 'Midwest', coords: [37.6499, -97.4331], hub: 'ICT' },
-  'NE': { name: 'Omaha Eppley', stateName: 'Nebraska', region: 'Midwest', coords: [41.3025, -95.8941], hub: 'OMA' },
-  'ND': { name: 'Fargo Hector', stateName: 'North Dakota', region: 'Midwest', coords: [46.9207, -96.8158], hub: 'FAR' },
-  'SD': { name: 'Sioux Falls', stateName: 'South Dakota', region: 'Midwest', coords: [43.5814, -96.7417], hub: 'FSD' },
+  // --- Midlands (The Logistics Golden Triangle) ---
+  'EMA': { name: 'East Midlands Airport Freight Superhub', stateName: 'Leicestershire / Derby', country: 'UK', region: 'UK-Midlands', coords: [52.8311, -1.3281], hub: 'EMA', flag: '🇬🇧', type: 'UK #1 Pure Air Cargo Hub', note: 'UK Superhub' },
+  'BHX': { name: 'Birmingham International & West Midlands Hub', stateName: 'West Midlands', country: 'UK', region: 'UK-Midlands', coords: [52.4524, -1.7435], hub: 'BHX', flag: '🇬🇧', type: 'Central Sorting Hub' },
+  'COV': { name: 'Coventry Central National Sorting Hub', stateName: 'Warwickshire', country: 'UK', region: 'UK-Midlands', coords: [52.4068, -1.5197], hub: 'COV', flag: '🇬🇧', type: 'National Parcel Hub' },
+  'NOT': { name: 'Nottingham Freight Depot', stateName: 'Nottinghamshire', country: 'UK', region: 'UK-Midlands', coords: [52.9548, -1.1581], hub: 'NOT', flag: '🇬🇧', type: 'Regional Depot' },
+  'LEI': { name: 'Leicester National Distribution Center', stateName: 'Leicestershire', country: 'UK', region: 'UK-Midlands', coords: [52.6369, -1.1398], hub: 'LEI', flag: '🇬🇧', type: 'Distribution Center' },
+  'NTH': { name: 'Northampton Logistics Spine (Golden Triangle)', stateName: 'Northamptonshire', country: 'UK', region: 'UK-Midlands', coords: [52.2405, -0.9027], hub: 'NTH', flag: '🇬🇧', type: 'Logistics Corridor' },
+  'STK': { name: 'Stoke-on-Trent Distribution Hub', stateName: 'Staffordshire', country: 'UK', region: 'UK-Midlands', coords: [53.0027, -2.1794], hub: 'STK', flag: '🇬🇧', type: 'Regional Sorting' },
+  'DER': { name: 'Derby Rail & Road Freight Hub', stateName: 'Derbyshire', country: 'UK', region: 'UK-Midlands', coords: [52.9225, -1.4746], hub: 'DER', flag: '🇬🇧', type: 'Intermodal Freight' },
 
-  // === NORTHEAST & MID-ATLANTIC ===
-  'NY': { name: 'New York City / JFK', stateName: 'New York', region: 'Northeast', coords: [40.6413, -73.7781], hub: 'JFK' },
-  'PA': { name: 'Philadelphia / Pittsburgh', stateName: 'Pennsylvania', region: 'Northeast', coords: [39.8744, -75.2424], hub: 'PHL' },
-  'NJ': { name: 'Newark / Jersey City', stateName: 'New Jersey', region: 'Northeast', coords: [40.6895, -74.1745], hub: 'EWR' },
-  'MA': { name: 'Boston Logan', stateName: 'Massachusetts', region: 'Northeast', coords: [42.3656, -71.0096], hub: 'BOS' },
-  'MD': { name: 'Baltimore / BWI', stateName: 'Maryland', region: 'Northeast', coords: [39.1774, -76.6684], hub: 'BWI' },
-  'CT': { name: 'Hartford / Bradley', stateName: 'Connecticut', region: 'Northeast', coords: [41.9388, -72.6832], hub: 'BDL' },
-  'RI': { name: 'Providence / Green', stateName: 'Rhode Island', region: 'Northeast', coords: [41.7240, -71.4282], hub: 'PVD' },
-  'NH': { name: 'Manchester / Boston', stateName: 'New Hampshire', region: 'Northeast', coords: [42.9345, -71.4371], hub: 'MHT' },
-  'VT': { name: 'Burlington', stateName: 'Vermont', region: 'Northeast', coords: [44.4730, -73.1503], hub: 'BTV' },
-  'ME': { name: 'Portland Jetport', stateName: 'Maine', region: 'Northeast', coords: [43.6462, -70.3093], hub: 'PWM' },
-  'DE': { name: 'Wilmington / New Castle', stateName: 'Delaware', region: 'Northeast', coords: [39.6787, -75.6065], hub: 'ILG' },
-  'DC': { name: 'Washington D.C. / Dulles', stateName: 'District of Columbia', region: 'Northeast', coords: [38.9531, -77.4565], hub: 'IAD' },
+  // --- North of England ---
+  'MAN': { name: 'Manchester Airport & Northwest Hub', stateName: 'Greater Manchester', country: 'UK', region: 'UK-North', coords: [53.3653, -2.2727], hub: 'MAN', flag: '🇬🇧', type: 'Transatlantic & Regional Air' },
+  'LPL': { name: 'Liverpool Port & Mersey Gateway', stateName: 'Merseyside', country: 'UK', region: 'UK-North', coords: [53.4084, -2.9916], hub: 'LPL', flag: '🇬🇧', type: 'Atlantic Container Port' },
+  'LBA': { name: 'Leeds Bradford & Yorkshire Hub', stateName: 'West Yorkshire', country: 'UK', region: 'UK-North', coords: [53.8659, -1.6606], hub: 'LBA', flag: '🇬🇧', type: 'Yorkshire Freight Hub' },
+  'SHF': { name: 'Sheffield South Yorkshire Logistics', stateName: 'South Yorkshire', country: 'UK', region: 'UK-North', coords: [53.3811, -1.4701], hub: 'SHF', flag: '🇬🇧', type: 'Logistics Park' },
+  'NCL': { name: 'Newcastle upon Tyne & Northeast Hub', stateName: 'Tyne and Wear', country: 'UK', region: 'UK-North', coords: [55.0375, -1.6917], hub: 'NCL', flag: '🇬🇧', type: 'Northeast Cargo Gateway' },
+  'HUL': { name: 'Port of Hull Humber Maritime Terminal', stateName: 'East Yorkshire', country: 'UK', region: 'UK-North', coords: [53.7457, -0.3367], hub: 'HUL', flag: '🇬🇧', type: 'North Sea Maritime' },
+  'MDB': { name: 'Teesport & Middlesbrough Container Terminal', stateName: 'North Yorkshire', country: 'UK', region: 'UK-North', coords: [54.5742, -1.2350], hub: 'MDB', flag: '🇬🇧', type: 'Container Seaport' },
+  'CRX': { name: 'Carlisle Scottish Border Checkpoint', stateName: 'Cumbria', country: 'UK', region: 'UK-North', coords: [54.8925, -2.9329], hub: 'CRX', flag: '🇬🇧', type: 'Border Transit Depot' },
 
-  // === WEST & PACIFIC ===
-  'CA': { name: 'Los Angeles / San Francisco', stateName: 'California', region: 'West', coords: [33.9416, -118.4085], hub: 'LAX' },
-  'WA': { name: 'Seattle/Tacoma', stateName: 'Washington', region: 'West', coords: [47.4502, -122.3088], hub: 'SEA' },
-  'CO': { name: 'Denver International', stateName: 'Colorado', region: 'West', coords: [39.8561, -104.6737], hub: 'DEN' },
-  'AZ': { name: 'Phoenix Sky Harbor', stateName: 'Arizona', region: 'West', coords: [33.4352, -112.0101], hub: 'PHX' },
-  'NV': { name: 'Las Vegas Harry Reid', stateName: 'Nevada', region: 'West', coords: [36.0840, -115.1537], hub: 'LAS' },
-  'OR': { name: 'Portland International', stateName: 'Oregon', region: 'West', coords: [45.5898, -122.5951], hub: 'PDX' },
-  'UT': { name: 'Salt Lake City', stateName: 'Utah', region: 'West', coords: [40.7899, -111.9791], hub: 'SLC' },
-  'NM': { name: 'Albuquerque Sunport', stateName: 'New Mexico', region: 'West', coords: [35.0402, -106.6092], hub: 'ABQ' },
-  'ID': { name: 'Boise Air Terminal', stateName: 'Idaho', region: 'West', coords: [43.5644, -116.2228], hub: 'BOI' },
-  'MT': { name: 'Billings Logan', stateName: 'Montana', region: 'West', coords: [45.8077, -108.5429], hub: 'BIL' },
-  'WY': { name: 'Cheyenne / Casper', stateName: 'Wyoming', region: 'West', coords: [42.9080, -106.4645], hub: 'CPR' },
-  'AK': { name: 'Anchorage Cargo Gateway', stateName: 'Alaska', region: 'West', coords: [61.1760, -149.9901], hub: 'ANC', note: 'Pacific Air Hub' },
-  'HI': { name: 'Honolulu International', stateName: 'Hawaii', region: 'West', coords: [21.3187, -157.9225], hub: 'HNL' }
+  // --- Scotland & Northern Ireland ---
+  'EDI': { name: 'Edinburgh Turnhouse International Hub', stateName: 'Scotland', country: 'UK', region: 'UK-Scotland-NI', coords: [55.9508, -3.3615], hub: 'EDI', flag: '🇬🇧', type: 'Scottish Air Hub' },
+  'GLA': { name: 'Glasgow Airport & Central Scotland Gateway', stateName: 'Scotland', country: 'UK', region: 'UK-Scotland-NI', coords: [55.8719, -4.4331], hub: 'GLA', flag: '🇬🇧', type: 'Air & Line-Haul' },
+  'ABZ': { name: 'Aberdeen North Sea Cargo Terminal', stateName: 'Scotland', country: 'UK', region: 'UK-Scotland-NI', coords: [57.2019, -2.1978], hub: 'ABZ', flag: '🇬🇧', type: 'Energy & Maritime Cargo' },
+  'PIK': { name: 'Glasgow Prestwick Heavy Freight Gateway', stateName: 'Scotland', country: 'UK', region: 'UK-Scotland-NI', coords: [55.5094, -4.5867], hub: 'PIK', flag: '🇬🇧', type: 'Heavy Cargo Hub' },
+  'DND': { name: 'Dundee & Tayside Distribution Hub', stateName: 'Scotland', country: 'UK', region: 'UK-Scotland-NI', coords: [56.4620, -2.9707], hub: 'DND', flag: '🇬🇧', type: 'Regional Depot' },
+  'INV': { name: 'Inverness Highlands Logistics Outpost', stateName: 'Scotland', country: 'UK', region: 'UK-Scotland-NI', coords: [57.4778, -4.2247], hub: 'INV', flag: '🇬🇧', type: 'Highlands Distribution' },
+  'BFS': { name: 'Belfast International & Harbour Port', stateName: 'Northern Ireland', country: 'UK', region: 'UK-Scotland-NI', coords: [54.6575, -6.2158], hub: 'BFS', flag: '🇬🇧', type: 'Irish Sea Gateway' },
+  'BHD': { name: 'Belfast City Freight Depot', stateName: 'Northern Ireland', country: 'UK', region: 'UK-Scotland-NI', coords: [54.6181, -5.8725], hub: 'BHD', flag: '🇬🇧', type: 'Urban Distribution' },
+  'LDY': { name: 'Derry / Londonderry Freight Hub', stateName: 'Northern Ireland', country: 'UK', region: 'UK-Scotland-NI', coords: [54.9966, -7.3086], hub: 'LDY', flag: '🇬🇧', type: 'Northwest NI Depot' },
+
+  // --- Wales & Southwest England ---
+  'CWL': { name: 'Cardiff Airport & South Wales Gateway', stateName: 'Wales', country: 'UK', region: 'UK-Wales-SW', coords: [51.3967, -3.3433], hub: 'CWL', flag: '🇬🇧', type: 'Welsh National Gateway' },
+  'SWA': { name: 'Swansea West Wales Distribution Depot', stateName: 'Wales', country: 'UK', region: 'UK-Wales-SW', coords: [51.6214, -3.9436], hub: 'SWA', flag: '🇬🇧', type: 'Regional Hub' },
+  'BRS': { name: 'Bristol Severnside Distribution Gateway', stateName: 'Bristol / Somerset', country: 'UK', region: 'UK-Wales-SW', coords: [51.4545, -2.5879], hub: 'BRS', flag: '🇬🇧', type: 'Severnside Logistics Hub' },
+  'PLY': { name: 'Plymouth & Southwest Maritime Gateway', stateName: 'Devon', country: 'UK', region: 'UK-Wales-SW', coords: [50.3755, -4.1427], hub: 'PLY', flag: '🇬🇧', type: 'Maritime & Road Depot' },
+  'EXT': { name: 'Exeter Regional Freight Depot', stateName: 'Devon', country: 'UK', region: 'UK-Wales-SW', coords: [50.7260, -3.5275], hub: 'EXT', flag: '🇬🇧', type: 'Southwest Hub' },
+  'OXF': { name: 'Oxford Logistics Distribution Depot', stateName: 'Oxfordshire', country: 'UK', region: 'UK-Wales-SW', coords: [51.7520, -1.2577], hub: 'OXF', flag: '🇬🇧', type: 'Technology Corridor' },
+  'CAM': { name: 'Cambridge Logistics & Tech Distribution', stateName: 'Cambridgeshire', country: 'UK', region: 'UK-Wales-SW', coords: [52.2053, 0.1218], hub: 'CAM', flag: '🇬🇧', type: 'Tech & Pharma Hub' },
+
+  // ==========================================
+  // 🇺🇸 UNITED STATES — MAJOR NATIONAL HUBS
+  // ==========================================
+  'MEM': { name: 'Memphis World Air Cargo Superhub', stateName: 'Tennessee', country: 'US', region: 'US-Major', coords: [35.0424, -89.9767], hub: 'MEM', flag: '🇺🇸', type: 'Global Air Cargo Superhub', note: 'World Air Hub' },
+  'SDF': { name: 'Louisville Worldport Cargo Superhub', stateName: 'Kentucky', country: 'US', region: 'US-Major', coords: [38.1744, -85.7360], hub: 'SDF', flag: '🇺🇸', type: 'Global Air Superhub', note: 'Worldport' },
+  'CVG': { name: 'Cincinnati / Northern KY Superhub', stateName: 'Kentucky', country: 'US', region: 'US-Major', coords: [39.0488, -84.6678], hub: 'CVG', flag: '🇺🇸', type: 'TXL Americas Superhub', note: 'Americas Superhub' },
+  'ORD': { name: 'Chicago O\'Hare Air Cargo Center', stateName: 'Illinois', country: 'US', region: 'US-Major', coords: [41.9742, -87.9073], hub: 'ORD', flag: '🇺🇸', type: 'Midwest Air Gateway' },
+  'JFK': { name: 'New York JFK International Air Cargo', stateName: 'New York', country: 'US', region: 'US-Major', coords: [40.6413, -73.7781], hub: 'JFK', flag: '🇺🇸', type: 'Transatlantic Air Gateway' },
+  'EWR': { name: 'Newark Liberty Container Port & Air Hub', stateName: 'New Jersey', country: 'US', region: 'US-Major', coords: [40.6895, -74.1745], hub: 'EWR', flag: '🇺🇸', type: 'Intermodal Port' },
+  'LAX': { name: 'Los Angeles International Air Cargo', stateName: 'California', country: 'US', region: 'US-Major', coords: [33.9416, -118.4085], hub: 'LAX', flag: '🇺🇸', type: 'Pacific Air Gateway' },
+  'LGB': { name: 'Port of Long Beach Maritime Gateway', stateName: 'California', country: 'US', region: 'US-Major', coords: [33.7542, -118.2165], hub: 'LGB', flag: '🇺🇸', type: 'Premier Pacific Container Port' },
+  'DFW': { name: 'Dallas/Fort Worth Central Superhub', stateName: 'Texas', country: 'US', region: 'US-Major', coords: [32.8998, -97.0403], hub: 'DFW', flag: '🇺🇸', type: 'Central US Air Hub' },
+  'IAH': { name: 'Houston Bush & Port of Houston', stateName: 'Texas', country: 'US', region: 'US-Major', coords: [29.9902, -95.3368], hub: 'IAH', flag: '🇺🇸', type: 'Gulf Coast Port & Air' },
+  'ATL': { name: 'Atlanta Hartsfield Air Cargo Hub', stateName: 'Georgia', country: 'US', region: 'US-Major', coords: [33.6407, -84.4277], hub: 'ATL', flag: '🇺🇸', type: 'Southeast Superhub' },
+  'MIA': { name: 'Miami Americas Gateway & Air Cargo', stateName: 'Florida', country: 'US', region: 'US-Major', coords: [25.7959, -80.2870], hub: 'MIA', flag: '🇺🇸', type: 'Latin America Gateway', note: 'Americas Gateway' },
+  'SEA': { name: 'Seattle/Tacoma Pacific Gateway', stateName: 'Washington', country: 'US', region: 'US-Major', coords: [47.4502, -122.3088], hub: 'SEA', flag: '🇺🇸', type: 'Pacific Northwest Hub' },
+  'IND': { name: 'Indianapolis Logistics Central Hub', stateName: 'Indiana', country: 'US', region: 'US-Major', coords: [39.7173, -86.2944], hub: 'IND', flag: '🇺🇸', type: 'National Distribution Spine' },
+
+  // ==========================================
+  // 🇺🇸 UNITED STATES — ALL 50 STATES + DC
+  // ==========================================
+  // --- South & Southeast ---
+  'TX': { name: 'Dallas / Houston Logistics Hub', stateName: 'Texas', country: 'US', region: 'US-South', coords: [32.8998, -97.0403], hub: 'DFW', flag: '🇺🇸' },
+  'FL': { name: 'Miami Americas Gateway / Orlando', stateName: 'Florida', country: 'US', region: 'US-South', coords: [25.7959, -80.2870], hub: 'MIA', flag: '🇺🇸', note: 'Americas Gateway' },
+  'GA': { name: 'Atlanta Hartsfield Cargo', stateName: 'Georgia', country: 'US', region: 'US-South', coords: [33.6407, -84.4277], hub: 'ATL', flag: '🇺🇸' },
+  'NC': { name: 'Charlotte / Raleigh', stateName: 'North Carolina', country: 'US', region: 'US-South', coords: [35.2144, -80.9473], hub: 'CLT', flag: '🇺🇸' },
+  'TN': { name: 'Nashville / Memphis Superhub', stateName: 'Tennessee', country: 'US', region: 'US-South', coords: [36.1263, -86.6774], hub: 'BNA', flag: '🇺🇸' },
+  'VA': { name: 'Richmond / Norfolk Port', stateName: 'Virginia', country: 'US', region: 'US-South', coords: [37.5052, -77.3197], hub: 'RIC', flag: '🇺🇸' },
+  'KY': { name: 'Cincinnati/Northern KY Hub', stateName: 'Kentucky', country: 'US', region: 'US-South', coords: [39.0488, -84.6678], hub: 'CVG', flag: '🇺🇸' },
+  'SC': { name: 'Charleston Container Port / Columbia', stateName: 'South Carolina', country: 'US', region: 'US-South', coords: [32.8986, -80.0405], hub: 'CHS', flag: '🇺🇸' },
+  'AL': { name: 'Birmingham Logistics Center', stateName: 'Alabama', country: 'US', region: 'US-South', coords: [33.5629, -86.7535], hub: 'BHM', flag: '🇺🇸' },
+  'LA': { name: 'New Orleans Armstrong & Mississippi Port', stateName: 'Louisiana', country: 'US', region: 'US-South', coords: [29.9911, -90.2592], hub: 'MSY', flag: '🇺🇸' },
+  'OK': { name: 'Oklahoma City Will Rogers Hub', stateName: 'Oklahoma', country: 'US', region: 'US-South', coords: [35.3931, -97.6007], hub: 'OKC', flag: '🇺🇸' },
+  'AR': { name: 'Little Rock Clinton National', stateName: 'Arkansas', country: 'US', region: 'US-South', coords: [34.7294, -92.2243], hub: 'LIT', flag: '🇺🇸' },
+  'MS': { name: 'Jackson Medgar Evers Hub', stateName: 'Mississippi', country: 'US', region: 'US-South', coords: [32.3112, -90.0759], hub: 'JAN', flag: '🇺🇸' },
+  'WV': { name: 'Charleston Yeager Logistics Depot', stateName: 'West Virginia', country: 'US', region: 'US-South', coords: [38.3731, -81.5932], hub: 'CRW', flag: '🇺🇸' },
+
+  // --- Midwest & Great Lakes ---
+  'IL': { name: 'Chicago O\'Hare & Midwest Center', stateName: 'Illinois', country: 'US', region: 'US-Midwest', coords: [41.9742, -87.9073], hub: 'ORD', flag: '🇺🇸' },
+  'OH': { name: 'Columbus Rickenbacker / Cleveland', stateName: 'Ohio', country: 'US', region: 'US-Midwest', coords: [39.9980, -82.8919], hub: 'CMH', flag: '🇺🇸' },
+  'MI': { name: 'Detroit Metro International', stateName: 'Michigan', country: 'US', region: 'US-Midwest', coords: [42.2162, -83.3554], hub: 'DTW', flag: '🇺🇸' },
+  'IN': { name: 'Indianapolis Air & Ground Hub', stateName: 'Indiana', country: 'US', region: 'US-Midwest', coords: [39.7173, -86.2944], hub: 'IND', flag: '🇺🇸' },
+  'WI': { name: 'Milwaukee Mitchell Freight Center', stateName: 'Wisconsin', country: 'US', region: 'US-Midwest', coords: [42.9472, -87.8966], hub: 'MKE', flag: '🇺🇸' },
+  'MN': { name: 'Minneapolis / St. Paul Twin Cities', stateName: 'Minnesota', country: 'US', region: 'US-Midwest', coords: [44.8848, -93.2223], hub: 'MSP', flag: '🇺🇸' },
+  'MO': { name: 'Kansas City Logistics / St. Louis', stateName: 'Missouri', country: 'US', region: 'US-Midwest', coords: [39.2976, -94.7139], hub: 'MCI', flag: '🇺🇸' },
+  'IA': { name: 'Des Moines Central Depot', stateName: 'Iowa', country: 'US', region: 'US-Midwest', coords: [41.5340, -93.6631], hub: 'DSM', flag: '🇺🇸' },
+  'KS': { name: 'Wichita Eisenhower Logistics', stateName: 'Kansas', country: 'US', region: 'US-Midwest', coords: [37.6499, -97.4331], hub: 'ICT', flag: '🇺🇸' },
+  'NE': { name: 'Omaha Eppley Freight Center', stateName: 'Nebraska', country: 'US', region: 'US-Midwest', coords: [41.3025, -95.8941], hub: 'OMA', flag: '🇺🇸' },
+  'ND': { name: 'Fargo Hector Northern Hub', stateName: 'North Dakota', country: 'US', region: 'US-Midwest', coords: [46.9207, -96.8158], hub: 'FAR', flag: '🇺🇸' },
+  'SD': { name: 'Sioux Falls Distribution Center', stateName: 'South Dakota', country: 'US', region: 'US-Midwest', coords: [43.5814, -96.7417], hub: 'FSD', flag: '🇺🇸' },
+
+  // --- Northeast & Mid-Atlantic ---
+  'NY': { name: 'New York City / JFK Gateway', stateName: 'New York', country: 'US', region: 'US-Northeast', coords: [40.6413, -73.7781], hub: 'JFK', flag: '🇺🇸' },
+  'PA': { name: 'Philadelphia / Pittsburgh Logistics', stateName: 'Pennsylvania', country: 'US', region: 'US-Northeast', coords: [39.8744, -75.2424], hub: 'PHL', flag: '🇺🇸' },
+  'NJ': { name: 'Newark Liberty Port / Jersey City', stateName: 'New Jersey', country: 'US', region: 'US-Northeast', coords: [40.6895, -74.1745], hub: 'EWR', flag: '🇺🇸' },
+  'MA': { name: 'Boston Logan International Hub', stateName: 'Massachusetts', country: 'US', region: 'US-Northeast', coords: [42.3656, -71.0096], hub: 'BOS', flag: '🇺🇸' },
+  'MD': { name: 'Baltimore Port & BWI Cargo', stateName: 'Maryland', country: 'US', region: 'US-Northeast', coords: [39.1774, -76.6684], hub: 'BWI', flag: '🇺🇸' },
+  'CT': { name: 'Hartford / Bradley Cargo Center', stateName: 'Connecticut', country: 'US', region: 'US-Northeast', coords: [41.9388, -72.6832], hub: 'BDL', flag: '🇺🇸' },
+  'RI': { name: 'Providence / Green Airport Hub', stateName: 'Rhode Island', country: 'US', region: 'US-Northeast', coords: [41.7240, -71.4282], hub: 'PVD', flag: '🇺🇸' },
+  'NH': { name: 'Manchester-Boston Regional Hub', stateName: 'New Hampshire', country: 'US', region: 'US-Northeast', coords: [42.9345, -71.4371], hub: 'MHT', flag: '🇺🇸' },
+  'VT': { name: 'Burlington Northern Gateway', stateName: 'Vermont', country: 'US', region: 'US-Northeast', coords: [44.4730, -73.1503], hub: 'BTV', flag: '🇺🇸' },
+  'ME': { name: 'Portland Jetport Freight Terminal', stateName: 'Maine', country: 'US', region: 'US-Northeast', coords: [43.6462, -70.3093], hub: 'PWM', flag: '🇺🇸' },
+  'DE': { name: 'Wilmington / New Castle Logistics', stateName: 'Delaware', country: 'US', region: 'US-Northeast', coords: [39.6787, -75.6065], hub: 'ILG', flag: '🇺🇸' },
+  'DC': { name: 'Washington D.C. / Dulles Gateway', stateName: 'District of Columbia', country: 'US', region: 'US-Northeast', coords: [38.9531, -77.4565], hub: 'IAD', flag: '🇺🇸' },
+
+  // --- West & Pacific ---
+  'CA': { name: 'Los Angeles / San Francisco / Long Beach', stateName: 'California', country: 'US', region: 'US-West', coords: [33.9416, -118.4085], hub: 'LAX', flag: '🇺🇸' },
+  'WA': { name: 'Seattle / Tacoma Pacific Port', stateName: 'Washington', country: 'US', region: 'US-West', coords: [47.4502, -122.3088], hub: 'SEA', flag: '🇺🇸' },
+  'CO': { name: 'Denver International Air Hub', stateName: 'Colorado', country: 'US', region: 'US-West', coords: [39.8561, -104.6737], hub: 'DEN', flag: '🇺🇸' },
+  'AZ': { name: 'Phoenix Sky Harbor Southwest Gateway', stateName: 'Arizona', country: 'US', region: 'US-West', coords: [33.4352, -112.0101], hub: 'PHX', flag: '🇺🇸' },
+  'NV': { name: 'Las Vegas / Reno Distribution Spine', stateName: 'Nevada', country: 'US', region: 'US-West', coords: [36.0840, -115.1537], hub: 'LAS', flag: '🇺🇸' },
+  'OR': { name: 'Portland International & Columbia Port', stateName: 'Oregon', country: 'US', region: 'US-West', coords: [45.5898, -122.5951], hub: 'PDX', flag: '🇺🇸' },
+  'UT': { name: 'Salt Lake City Western Crossroads', stateName: 'Utah', country: 'US', region: 'US-West', coords: [40.7899, -111.9791], hub: 'SLC', flag: '🇺🇸' },
+  'NM': { name: 'Albuquerque Sunport Cargo Depot', stateName: 'New Mexico', country: 'US', region: 'US-West', coords: [35.0402, -106.6092], hub: 'ABQ', flag: '🇺🇸' },
+  'ID': { name: 'Boise Air Terminal Logistics', stateName: 'Idaho', country: 'US', region: 'US-West', coords: [43.5644, -116.2228], hub: 'BOI', flag: '🇺🇸' },
+  'MT': { name: 'Billings Logan Northern Hub', stateName: 'Montana', country: 'US', region: 'US-West', coords: [45.8077, -108.5429], hub: 'BIL', flag: '🇺🇸' },
+  'WY': { name: 'Cheyenne / Casper Distribution Depot', stateName: 'Wyoming', country: 'US', region: 'US-West', coords: [42.9080, -106.4645], hub: 'CPR', flag: '🇺🇸' },
+  'AK': { name: 'Anchorage Cargo Gateway (Pacific Crossroads)', stateName: 'Alaska', country: 'US', region: 'US-West', coords: [61.1760, -149.9901], hub: 'ANC', flag: '🇺🇸', note: 'Pacific Air Hub' },
+  'HI': { name: 'Honolulu International & Pacific Port', stateName: 'Hawaii', country: 'US', region: 'US-West', coords: [21.3187, -157.9225], hub: 'HNL', flag: '🇺🇸' },
+
+  // ==========================================
+  // 🌐 INTERNATIONAL INTERCONTINENTAL GATEWAYS
+  // ==========================================
+  'FRA': { name: 'Frankfurt CargoCity European Hub', stateName: 'Hesse', country: 'Germany', region: 'Global', coords: [50.0379, 8.5622], hub: 'FRA', flag: '🌐', type: 'European Air Superhub' },
+  'AMS': { name: 'Amsterdam Schiphol & Rotterdam Seaport', stateName: 'North Holland', country: 'Netherlands', region: 'Global', coords: [52.3105, 4.7683], hub: 'AMS', flag: '🌐', type: 'Gateway Seaport/Air' },
+  'CDG': { name: 'Paris Charles de Gaulle Cargo Hub', stateName: 'Île-de-France', country: 'France', region: 'Global', coords: [49.0097, 2.5479], hub: 'CDG', flag: '🌐', type: 'Continental Cargo Hub' },
+  'DXB': { name: 'Dubai World Central & Al Maktoum Logistics', stateName: 'Dubai', country: 'UAE', region: 'Global', coords: [25.2532, 55.3657], hub: 'DXB', flag: '🌐', type: 'Middle East Air Crossroads' },
+  'SIN': { name: 'Singapore Changi Air & Seaport Mega-Terminal', stateName: 'Changi', country: 'Singapore', region: 'Global', coords: [1.3644, 103.9915], hub: 'SIN', flag: '🌐', type: 'Southeast Asia Hub' },
+  'HKG': { name: 'Hong Kong International Cargo Superhub', stateName: 'Chek Lap Kok', country: 'Hong Kong', region: 'Global', coords: [22.3080, 113.9185], hub: 'HKG', flag: '🌐', type: 'Asia Pacific Air Hub' },
+  'HND': { name: 'Tokyo Haneda / Narita Air Hub', stateName: 'Tokyo', country: 'Japan', region: 'Global', coords: [35.5494, 139.7798], hub: 'HND', flag: '🌐', type: 'East Asia Gateway' },
+  'YYZ': { name: 'Toronto Pearson Logistics Gateway', stateName: 'Ontario', country: 'Canada', region: 'Global', coords: [43.6777, -79.6248], hub: 'YYZ', flag: '🌐', type: 'North America Gateway' },
+  'SYD': { name: 'Sydney Port Botany & Kingsford Smith Cargo', stateName: 'New South Wales', country: 'Australia', region: 'Global', coords: [-33.9399, 151.1753], hub: 'SYD', flag: '🌐', type: 'Oceania Superhub' }
 };
 
-// Aliases and coordinates mapping for both 2-letter state codes and 3-letter airport codes
+// Backwards-compatible alias for existing references
+const US_STATES_DATA = GLOBAL_LOGISTICS_HUBS;
+
+// Complete GPS Coordinates mapping
 const GPS_COORDINATES = {
-  // Map all 50 states + DC
-  ...Object.fromEntries(Object.entries(US_STATES_DATA).map(([code, item]) => [code, item.coords])),
-  // Airport & legacy 3-letter code aliases for seamless backwards compatibility
-  'DFW': [32.8998, -97.0403],
-  'IAH': [29.9902, -95.3368],
-  'MIA': [25.7959, -80.2870],
-  'MCO': [28.4312, -81.3081],
-  'TPA': [27.9772, -82.5311],
-  'ATL': [33.6407, -84.4277],
-  'CLT': [35.2144, -80.9473],
-  'RDU': [35.8801, -78.7880],
-  'BNA': [36.1263, -86.6774],
-  'MEM': [35.0424, -89.9767],
-  'CVG': [39.0488, -84.6678],
-  'ORD': [41.9742, -87.9073],
+  ...Object.fromEntries(Object.entries(GLOBAL_LOGISTICS_HUBS).map(([code, item]) => [code, item.coords])),
+  // Airport & legacy aliases
   'CHI': [41.8781, -87.6298],
   'CLE': [41.4094, -81.8547],
-  'CMH': [39.9980, -82.8919],
-  'DTW': [42.2162, -83.3554],
-  'IND': [39.7173, -86.2944],
-  'MKE': [42.9472, -87.8966],
-  'MSP': [44.8848, -93.2223],
   'KC':  [39.2976, -94.7139],
-  'MCI': [39.2976, -94.7139],
   'STL': [38.7472, -90.3599],
-  'JFK': [40.6413, -73.7781],
   'NY':  [40.7128, -74.0060],
-  'PHL': [39.8744, -75.2424],
   'PIT': [40.4914, -80.2329],
-  'EWR': [40.6895, -74.1745],
-  'BOS': [42.3656, -71.0096],
-  'BWI': [39.1774, -76.6684],
-  'IAD': [38.9531, -77.4565],
-  'LAX': [33.9416, -118.4085],
   'LA':  [34.0522, -118.2437],
   'SFO': [37.6213, -122.3790],
   'SF':  [37.7749, -122.4194],
   'SAN': [32.7338, -117.1933],
-  'SEA': [47.4502, -122.3088],
-  'DEN': [39.8561, -104.6737],
-  'PHX': [33.4352, -112.0101],
-  'LAS': [36.0840, -115.1537],
-  'PDX': [45.5898, -122.5951],
-  'SLC': [40.7899, -111.9791],
-  'ABQ': [35.0402, -106.6092],
-  'ANC': [61.1760, -149.9901],
-  'HNL': [21.3187, -157.9225],
-  // Fallbacks for any existing seed data
+  'RDU': [35.8801, -78.7880],
+  'MCO': [28.4312, -81.3081],
+  'TPA': [27.9772, -82.5311],
   'LEJ': [51.4239, 12.2364],
-  'FRA': [50.0379, 8.5622],
   'BER': [52.3667, 13.5033],
-  'LHR': [51.4700, -0.4543],
-  'SIN': [1.3644, 103.9915],
-  'DXB': [25.2532, 55.3657],
-  'HND': [35.5494, 139.7798],
   'BOM': [19.0896, 72.8656],
   'SZX': [22.6393, 113.8107]
 };
 
-// Format helper for text inputs (e.g. "Dallas / Fort Worth, TX - DFW01")
+// Format helper for text inputs and displays
 const formatHubLocationText = (code) => {
-  const item = US_STATES_DATA[code];
+  const item = GLOBAL_LOGISTICS_HUBS[code];
   if (!item) {
-    // Check if code is a 3-letter alias
-    const foundState = Object.entries(US_STATES_DATA).find(([st, data]) => data.hub === code);
-    if (foundState) {
-      return `${foundState[1].name}, ${foundState[0]} - ${code}01`;
+    const found = Object.entries(GLOBAL_LOGISTICS_HUBS).find(([k, data]) => data.hub === code);
+    if (found) {
+      return `${found[1].flag || ''} ${found[1].name} - ${code}01`;
     }
-    return `${code} Hub, USA`;
+    return `${code} Station`;
   }
-  return `${item.name}, ${code} - ${item.hub}01`;
+  const flag = item.flag || (item.country === 'UK' ? '🇬🇧' : item.country === 'US' ? '🇺🇸' : '🌐');
+  const loc = item.stateName ? `${item.name}, ${item.stateName}` : item.name;
+  return `${flag} ${loc} (${code})`;
 };
 
-// Grouped dropdown options for all 50 US States + DC
+// Grouped dropdown options for UK Checkpoints, US Superhubs, all 50 US States, and Global Gateways
 const renderCategorizedHubOptions = (excludeList = []) => {
-  const regions = [
-    { key: 'South', label: '🇺🇸 US South & Southeast' },
-    { key: 'Midwest', label: '🇺🇸 US Midwest & Great Lakes' },
-    { key: 'Northeast', label: '🇺🇸 US Northeast & Mid-Atlantic' },
-    { key: 'West', label: '🇺🇸 US West & Pacific' }
+  const categories = [
+    { key: 'UK-London', label: '🇬🇧 United Kingdom — London & Southeast Checkpoints' },
+    { key: 'UK-Midlands', label: '🇬🇧 United Kingdom — Midlands Freight Golden Triangle' },
+    { key: 'UK-North', label: '🇬🇧 United Kingdom — North of England & Humber Ports' },
+    { key: 'UK-Scotland-NI', label: '🇬🇧 United Kingdom — Scotland & Northern Ireland Hubs' },
+    { key: 'UK-Wales-SW', label: '🇬🇧 United Kingdom — Wales & Southwest Gateways' },
+    { key: 'US-Major', label: '🇺🇸 United States — Major Cargo Superhubs & Seaports' },
+    { key: 'US-South', label: '🇺🇸 United States — South & Southeast States' },
+    { key: 'US-Midwest', label: '🇺🇸 United States — Midwest & Great Lakes States' },
+    { key: 'US-Northeast', label: '🇺🇸 United States — Northeast & Mid-Atlantic States' },
+    { key: 'US-West', label: '🇺🇸 United States — West & Pacific States' },
+    { key: 'Global', label: '🌐 Global — Intercontinental Air & Ocean Hubs' }
   ];
 
-  return regions.map(reg => {
-    const stateCodes = Object.keys(US_STATES_DATA).filter(
-      code => US_STATES_DATA[code].region === reg.key && !excludeList.includes(code)
+  return categories.map(cat => {
+    const hubCodes = Object.keys(GLOBAL_LOGISTICS_HUBS).filter(
+      code => GLOBAL_LOGISTICS_HUBS[code].region === cat.key && !excludeList.includes(code)
     );
-    if (stateCodes.length === 0) return null;
+    if (hubCodes.length === 0) return null;
     return (
-      <optgroup key={reg.key} label={reg.label}>
-        {stateCodes.map(code => {
-          const item = US_STATES_DATA[code];
-          const badge = item.note ? ` [${item.note}]` : '';
+      <optgroup key={cat.key} label={cat.label}>
+        {hubCodes.map(code => {
+          const item = GLOBAL_LOGISTICS_HUBS[code];
+          const badge = item.note ? ` [${item.note}]` : item.type ? ` — ${item.type}` : '';
           return (
             <option key={code} value={code}>
-              {code} — {item.stateName} ({item.name}){badge}
+              {item.flag} {code} — {item.name} ({item.stateName}){badge}
             </option>
           );
         })}
@@ -183,6 +243,118 @@ const renderCategorizedHubOptions = (excludeList = []) => {
     );
   });
 };
+
+// Smart Route Sequence Pathfinder: Calculates the most realistic logistics corridor between any origin and destination
+function calculateSmartRoute(startCode, endCode, hubs = GLOBAL_LOGISTICS_HUBS) {
+  if (!startCode || !endCode) return startCode || endCode || '';
+  if (startCode === endCode) return startCode;
+
+  const start = hubs[startCode];
+  const end = hubs[endCode];
+  if (!start || !end) return `${startCode}-${endCode}`;
+
+  const c1 = start.coords;
+  const c2 = end.coords;
+  const dLat = c2[0] - c1[0];
+  const dLng = c2[1] - c1[1];
+  const totalDist = Math.sqrt(dLat * dLat + dLng * dLng);
+
+  // If very close, direct non-stop path
+  if (totalDist < 1.0) {
+    return `${startCode}-${endCode}`;
+  }
+
+  // 1. Transatlantic: UK to US
+  if (start.country === 'UK' && end.country === 'US') {
+    const ukGateway = (startCode === 'LHR' || startCode === 'LGW' || startCode === 'LON') ? startCode : 'LHR';
+    const usGateway = (end.coords[1] < -95) ? 'ORD' : 'JFK';
+    const wps = [startCode];
+    if (startCode !== ukGateway) wps.push(ukGateway);
+    if (endCode !== usGateway) wps.push(usGateway);
+    wps.push(endCode);
+    return [...new Set(wps)].join('-');
+  }
+
+  // 2. Transatlantic: US to UK
+  if (start.country === 'US' && end.country === 'UK') {
+    const usGateway = (start.coords[1] < -95) ? 'ORD' : 'JFK';
+    const ukGateway = (endCode === 'LHR' || endCode === 'LGW' || endCode === 'LON') ? endCode : 'LHR';
+    const wps = [startCode];
+    if (startCode !== usGateway) wps.push(usGateway);
+    if (endCode !== ukGateway) wps.push(ukGateway);
+    wps.push(endCode);
+    return [...new Set(wps)].join('-');
+  }
+
+  // 3. Global International Gateways (FRA, AMS, CDG, DXB, SIN, HKG, HND)
+  if (start.region === 'Global' || end.region === 'Global') {
+    const isUkTarget = start.country === 'UK' || end.country === 'UK';
+    const intermediate = isUkTarget ? 'LHR' : 'JFK';
+    const wps = [startCode, intermediate, endCode];
+    return [...new Set(wps)].join('-');
+  }
+
+  // 4. Same Country Corridor (UK-to-UK or US-to-US)
+  const candidates = [];
+  const minLat = Math.min(c1[0], c2[0]);
+  const maxLat = Math.max(c1[0], c2[0]);
+  const minLng = Math.min(c1[1], c2[1]);
+  const maxLng = Math.max(c1[1], c2[1]);
+  const margin = start.country === 'UK' ? 0.7 : 2.5;
+
+  const priorityHubs = new Set([
+    'EMA', 'BHX', 'MAN', 'LBA', 'EDI', 'GLA', 'BFS', 'SOU', // UK Superhubs
+    'ORD', 'MEM', 'SDF', 'CVG', 'DEN', 'DFW', 'ATL', 'JFK', 'LAX', 'SEA', 'MIA', 'IND' // US Superhubs
+  ]);
+
+  for (const [code, h] of Object.entries(hubs)) {
+    if (code === startCode || code === endCode) continue;
+    if (h.country !== start.country) continue;
+
+    const hc = h.coords;
+    if (hc[0] >= minLat - margin && hc[0] <= maxLat + margin &&
+        hc[1] >= minLng - margin && hc[1] <= maxLng + margin) {
+      
+      const d1 = Math.sqrt(Math.pow(hc[0] - c1[0], 2) + Math.pow(hc[1] - c1[1], 2));
+      const d2 = Math.sqrt(Math.pow(c2[0] - hc[0], 2) + Math.pow(c2[1] - hc[1], 2));
+      const detour = (d1 + d2) - totalDist;
+      
+      // Normalized projection along line (0 = start, 1 = end)
+      const proj = ((hc[0] - c1[0]) * (c2[0] - c1[0]) + (hc[1] - c1[1]) * (c2[1] - c1[1])) / (totalDist * totalDist);
+
+      const maxDetourRatio = priorityHubs.has(code) ? 0.35 : 0.18;
+      if (proj > 0.15 && proj < 0.85 && detour < totalDist * maxDetourRatio) {
+        candidates.push({ code, detour, proj, isPriority: priorityHubs.has(code) });
+      }
+    }
+  }
+
+  // Sort candidates by priority & minimum detour
+  candidates.sort((a, b) => {
+    if (a.isPriority && !b.isPriority) return -1;
+    if (!a.isPriority && b.isPriority) return 1;
+    return a.detour - b.detour;
+  });
+
+  // Pick up to 2 best spaced intermediate hubs
+  const selected = [];
+  for (const c of candidates) {
+    if (selected.length === 0) {
+      selected.push(c);
+    } else {
+      const prev = selected[0];
+      if (Math.abs(c.proj - prev.proj) > 0.22 && selected.length < 2) {
+        selected.push(c);
+      }
+    }
+  }
+
+  // Order waypoints from start to end by projection
+  selected.sort((a, b) => a.proj - b.proj);
+
+  const route = [startCode, ...selected.map(s => s.code), endCode];
+  return route.join('-');
+}
 
 function getInterpolatedPosition(waypoints, progressPercentage) {
   if (!waypoints || waypoints.length === 0) return [0, 0];
@@ -278,7 +450,7 @@ const LeafletMap = ({ shipment, height = '350px' }) => {
     // Draw routing line
     if (latlngs.length > 0) {
       routeLineRef.current = L.polyline(latlngs, {
-        color: '#D40511',
+        color: '#FF6B00',
         weight: 3.5,
         opacity: 0.85,
         dashArray: '6, 8'
@@ -297,20 +469,43 @@ const LeafletMap = ({ shipment, height = '350px' }) => {
       routePoints.forEach((pt, index) => {
         const isEnd = index === routePoints.length - 1;
         const isStart = index === 0;
-        const hubInfo = US_STATES_DATA[pt.code];
-        const hubTitle = hubInfo ? `${hubInfo.name}, ${hubInfo.stateName}` : `${pt.code} Station, USA`;
-        const hubRole = isStart ? 'Origin State / Gateway' : isEnd ? 'Final Destination State' : `Transit Waypoint #${index + 1}`;
+        const hubInfo = GLOBAL_LOGISTICS_HUBS[pt.code];
+        const flag = hubInfo?.flag || '📍';
+        const hubTitle = hubInfo 
+          ? `${hubInfo.name}${hubInfo.stateName ? `, ${hubInfo.stateName}` : ''}` 
+          : `${pt.code} Station`;
+        const countryLabel = hubInfo?.country === 'UK' ? 'United Kingdom' : hubInfo?.country === 'US' ? 'United States' : (hubInfo?.country || 'International');
+        const hubRole = isStart 
+          ? 'Origin Gateway / Dispatch Checkpoint' 
+          : isEnd 
+            ? 'Final Destination Delivery Hub' 
+            : `Active Transit Waypoint #${index + 1}`;
 
         const pinIcon = L.divIcon({
           html: `<div class="map-hub-pin ${isStart ? 'start' : isEnd ? 'end' : 'mid'}"><span>${pt.code}</span></div>`,
           className: 'custom-pin-container',
-          iconSize: [24, 24],
-          iconAnchor: [12, 12]
+          iconSize: [26, 26],
+          iconAnchor: [13, 13]
         });
+
+        const popupContent = `
+          <div style="font-family: 'Inter', -apple-system, sans-serif; min-width: 180px; padding: 2px;">
+            <div style="font-size: 13px; font-weight: 800; color: #0F172A; display: flex; align-items: center; gap: 6px;">
+              <span>${flag}</span> <span>${pt.code} — ${hubInfo ? hubInfo.name : pt.code}</span>
+            </div>
+            <div style="font-size: 11px; color: #64748B; margin-top: 3px;">
+              ${countryLabel} ${hubInfo?.stateName ? `&bull; ${hubInfo.stateName}` : ''}
+            </div>
+            <div style="margin-top: 6px; padding: 4px 8px; background: #F1F5F9; border-radius: 4px; font-size: 11px; font-weight: 600; color: #0F172A;">
+              <i>${hubRole}</i>
+            </div>
+            ${hubInfo?.type ? `<div style="margin-top: 4px; font-size: 10px; color: #FF6B00; font-weight: 700; text-transform: uppercase;">Facility: ${hubInfo.type}</div>` : ''}
+          </div>
+        `;
 
         const marker = L.marker(pt.coords, { icon: pinIcon })
           .addTo(map)
-          .bindPopup(`<b>${pt.code} — ${hubTitle}</b><br/><i>${hubRole}</i>`);
+          .bindPopup(popupContent);
         markersRef.current.push(marker);
       });
     }
@@ -379,17 +574,17 @@ const EmailCenterView = ({ shipments, API_BASE }) => {
     const code = activeShipment?.id || '[TRACKING_CODE]';
 
     if (type === 'SHIPMENT_UPDATE') {
-      setSubject(`Shipment Update: DHL Package #${code}`);
+      setSubject(`Shipment Update: TXL Package #${code}`);
       setMessageBody(`Your package #${code} has been updated to "${activeShipment?.status || 'In Transit'}". Current location: ${activeShipment?.currentLocationName || activeShipment?.origin || 'Hub'}.`);
     } else if (type === 'OUT_FOR_DELIVERY') {
-      setSubject(`Out for Delivery: DHL Package #${code}`);
-      setMessageBody(`Great news! Your DHL package #${code} is out for final delivery today. Please ensure someone is available to receive the package.`);
+      setSubject(`Out for Delivery: TXL Package #${code}`);
+      setMessageBody(`Great news! Your TXL package #${code} is out for final delivery today. Please ensure someone is available to receive the package.`);
     } else if (type === 'DELAY_NOTICE') {
-      setSubject(`Important Notice: Update on DHL Package #${code}`);
+      setSubject(`Important Notice: Update on TXL Package #${code}`);
       setMessageBody(`We wanted to notify you that shipment #${code} is experiencing a slight delay due to logistics processing. Our team is actively resolving this to deliver your package as soon as possible.`);
     } else {
-      setSubject(`Notice regarding your DHL Shipment #${code}`);
-      setMessageBody(`Hello,\n\nWe are writing to provide an update regarding your parcel with DHL Express Logistics.\n\nThank you for choosing DHL Services.`);
+      setSubject(`Notice regarding your TXL Shipment #${code}`);
+      setMessageBody(`Hello,\n\nWe are writing to provide an update regarding your parcel with TXL Express Logistics.\n\nThank you for choosing TXL Services.`);
     }
   };
 
@@ -441,14 +636,14 @@ const EmailCenterView = ({ shipments, API_BASE }) => {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
         <div>
           <h2 style={{ fontSize: '1.75rem', fontWeight: '800', color: 'var(--text-primary)', margin: 0, display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <Mail style={{ color: '#FFCC00' }} /> Admin Email Dispatch Center
+            <Mail style={{ color: '#0F172A' }} /> Admin Email Dispatch Center
           </h2>
           <p style={{ color: 'var(--text-secondary)', margin: '6px 0 0 0', fontSize: '0.9rem' }}>
             Send transactional emails & updates directly to customers via Resend API
           </p>
         </div>
-        <div style={{ background: 'rgba(255, 204, 0, 0.15)', border: '1px solid #FFCC00', padding: '6px 14px', borderRadius: '20px', fontSize: '0.8rem', color: '#FFCC00', fontWeight: '700' }}>
-          ✓ Resend Active: support@dhlglobaltracking.com
+        <div style={{ background: 'rgba(255, 204, 0, 0.15)', border: '1px solid #0F172A', padding: '6px 14px', borderRadius: '20px', fontSize: '0.8rem', color: '#0F172A', fontWeight: '700' }}>
+          ✓ Resend Active: support@txlglobaltracking.com
         </div>
       </div>
 
@@ -467,11 +662,11 @@ const EmailCenterView = ({ shipments, API_BASE }) => {
         </div>
       )}
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
+      <div className="email-center-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
         
         {/* Left Column: Form Controls */}
         <div style={{ background: 'var(--card-bg, #2a2521)', border: '1px solid var(--border-color)', borderRadius: '12px', padding: '24px' }}>
-          <h3 style={{ fontSize: '1.1rem', fontWeight: '700', color: '#FFCC00', marginTop: 0, marginBottom: '16px' }}>
+          <h3 style={{ fontSize: '1.1rem', fontWeight: '700', color: '#0F172A', marginTop: 0, marginBottom: '16px' }}>
             1. Compose Email
           </h3>
 
@@ -495,7 +690,7 @@ const EmailCenterView = ({ shipments, API_BASE }) => {
               </select>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+            <div className="email-center-inputs-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
               <div>
                 <label style={{ fontSize: '0.8rem', fontWeight: '700', color: '#e2e8f0', textTransform: 'uppercase', display: 'block', marginBottom: '6px' }}>
                   Recipient Email *
@@ -527,7 +722,7 @@ const EmailCenterView = ({ shipments, API_BASE }) => {
               <label style={{ fontSize: '0.8rem', fontWeight: '700', color: '#e2e8f0', textTransform: 'uppercase', display: 'block', marginBottom: '6px' }}>
                 Preset Email Template
               </label>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+              <div className="email-center-templates-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
                 {[
                   { id: 'SHIPMENT_UPDATE', label: 'Status Update' },
                   { id: 'OUT_FOR_DELIVERY', label: 'Out for Delivery' },
@@ -543,9 +738,9 @@ const EmailCenterView = ({ shipments, API_BASE }) => {
                       borderRadius: '6px',
                       fontSize: '0.82rem',
                       fontWeight: '600',
-                      border: templateType === t.id ? '1px solid #FFCC00' : '1px solid var(--border-color)',
+                      border: templateType === t.id ? '1px solid #0F172A' : '1px solid var(--border-color)',
                       background: templateType === t.id ? 'rgba(255, 185, 0, 0.15)' : '#1b1613',
-                      color: templateType === t.id ? '#FFCC00' : '#ffffff',
+                      color: templateType === t.id ? '#0F172A' : '#ffffff',
                       cursor: 'pointer',
                       textAlign: 'center'
                     }}
@@ -591,7 +786,7 @@ const EmailCenterView = ({ shipments, API_BASE }) => {
                 marginTop: '10px',
                 padding: '12px 20px',
                 borderRadius: '8px',
-                background: sending ? '#64748b' : 'linear-gradient(135deg, #D40511 0%, #B8040E 100%)',
+                background: sending ? '#64748b' : 'linear-gradient(135deg, #FF6B00 0%, #B8040E 100%)',
                 color: '#ffffff',
                 border: 'none',
                 fontWeight: '800',
@@ -615,15 +810,15 @@ const EmailCenterView = ({ shipments, API_BASE }) => {
 
         {/* Right Column: Live Preview (Dukascopy Bank Style) */}
         <div style={{ background: 'var(--card-bg, #2a2521)', border: '1px solid var(--border-color)', borderRadius: '12px', padding: '24px' }}>
-          <h3 style={{ fontSize: '1.1rem', fontWeight: '700', color: '#FFCC00', marginTop: 0, marginBottom: '16px' }}>
+          <h3 style={{ fontSize: '1.1rem', fontWeight: '700', color: '#0F172A', marginTop: 0, marginBottom: '16px' }}>
             2. Live Email Preview
           </h3>
 
           <div style={{ background: '#eef2f5', color: '#2d3748', borderRadius: '8px', padding: '20px', fontFamily: 'Arial, Helvetica, sans-serif', border: '1px solid #cbd5e1' }}>
             
             {/* Top Logo Header */}
-            <div style={{ background: '#FFCC00', borderRadius: '6px 6px 0 0', padding: '14px 18px', textAlign: 'left', display: 'flex', alignItems: 'center', borderBottom: '3px solid #D40511' }}>
-              <span style={{ fontSize: '22px', fontWeight: '900', fontStyle: 'italic', color: '#D40511', letterSpacing: '1px' }}>DHL</span>
+            <div style={{ background: '#0F172A', borderRadius: '6px 6px 0 0', padding: '14px 18px', textAlign: 'left', display: 'flex', alignItems: 'center', borderBottom: '3px solid #FF6B00' }}>
+              <span style={{ fontSize: '22px', fontWeight: '900', fontStyle: 'italic', color: '#FF6B00', letterSpacing: '1px' }}>TXL</span>
               <span style={{ fontSize: '14px', fontWeight: '700', color: '#1A1A1A', marginLeft: '10px', textTransform: 'uppercase' }}>Express Logistics</span>
             </div>
 
@@ -639,14 +834,14 @@ const EmailCenterView = ({ shipments, API_BASE }) => {
 
               {selectedShipment && (
                 <div style={{ background: '#f8f9fa', border: '1px solid #e9ecef', borderRadius: '4px', padding: '12px', marginBottom: '16px', fontSize: '12px' }}>
-                  <div style={{ marginBottom: '4px' }}><strong>Tracking Code:</strong> <span style={{ fontFamily: 'monospace', fontWeight: '800', color: '#D40511' }}>{selectedShipment.id}</span></div>
+                  <div style={{ marginBottom: '4px' }}><strong>Tracking Code:</strong> <span style={{ fontFamily: 'monospace', fontWeight: '800', color: '#FF6B00' }}>{selectedShipment.id}</span></div>
                   <div style={{ marginBottom: '4px' }}><strong>Status:</strong> {selectedShipment.status}</div>
                   <div><strong>Route:</strong> {selectedShipment.origin || 'N/A'} &rarr; {selectedShipment.destination || 'N/A'}</div>
                 </div>
               )}
 
               <div style={{ marginTop: '16px', textAlign: 'center' }}>
-                <span style={{ display: 'inline-block', background: '#D40511', color: '#ffffff', fontWeight: '800', fontSize: '12px', padding: '8px 18px', borderRadius: '4px', textDecoration: 'none' }}>
+                <span style={{ display: 'inline-block', background: '#FF6B00', color: '#ffffff', fontWeight: '800', fontSize: '12px', padding: '8px 18px', borderRadius: '4px', textDecoration: 'none' }}>
                   Track Shipment Live &rarr;
                 </span>
               </div>
@@ -654,9 +849,9 @@ const EmailCenterView = ({ shipments, API_BASE }) => {
 
             {/* Footer Card */}
             <div style={{ background: '#ffffff', borderRadius: '6px', padding: '16px', border: '1px solid #e2e8f0', fontSize: '12px', color: '#6c757d', textAlign: 'center' }}>
-              <p style={{ margin: '0 0 4px 0', fontWeight: '800', color: '#1A1A1A' }}>DHL Express Global Logistics Services</p>
-              <p style={{ margin: '0 0 4px 0' }}>Website: dhlglobaltracking.com</p>
-              <p style={{ margin: '0', color: '#868e96' }}>Email: support@dhlglobaltracking.com</p>
+              <p style={{ margin: '0 0 4px 0', fontWeight: '800', color: '#1A1A1A' }}>TXL Express Global Logistics Services</p>
+              <p style={{ margin: '0 0 4px 0' }}>Website: txlglobaltracking.com</p>
+              <p style={{ margin: '0', color: '#868e96' }}>Email: support@txlglobaltracking.com</p>
             </div>
 
           </div>
@@ -680,7 +875,7 @@ const MessagesView = ({ messages, API_BASE, onMarkRead, onRefresh }) => {
   const conversations = React.useMemo(() => {
     const groups = {};
     (messages || []).forEach(m => {
-      const email = m.customerEmail ? m.customerEmail.toLowerCase().trim() : 'unknown@dhl.com';
+      const email = m.customerEmail ? m.customerEmail.toLowerCase().trim() : 'unknown@txlglobaltracking.com';
       if (!groups[email]) {
         groups[email] = {
           email,
@@ -774,7 +969,7 @@ const MessagesView = ({ messages, API_BASE, onMarkRead, onRefresh }) => {
   };
 
   const handleSimulateInbound = async () => {
-    const targetEmail = selectedEmail || 'customer@dhl.com';
+    const targetEmail = selectedEmail || 'customer@txlglobaltracking.com';
     const sampleText = prompt(`Enter test email reply message from customer (${targetEmail}):`, "Hello Support, thank you! Could you also check if signature release is available for my shipment?");
     if (!sampleText) return;
 
@@ -784,7 +979,7 @@ const MessagesView = ({ messages, API_BASE, onMarkRead, onRefresh }) => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           from: `${activeConv?.name || 'Customer'} <${targetEmail}>`,
-          subject: `Re: Inquiry regarding DHL Package`,
+          subject: `Re: Inquiry regarding TXL Package`,
           text: sampleText
         })
       });
@@ -863,7 +1058,7 @@ const MessagesView = ({ messages, API_BASE, onMarkRead, onRefresh }) => {
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '340px 1fr', gap: '20px', minHeight: '650px' }}>
+      <div className="messages-split-grid" style={{ display: 'grid', gridTemplateColumns: '340px 1fr', gap: '20px', minHeight: '650px' }}>
         
         {/* Left Column: Conversation List */}
         <div style={{ background: '#ffffff', borderRadius: '8px', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
@@ -895,7 +1090,7 @@ const MessagesView = ({ messages, API_BASE, onMarkRead, onRefresh }) => {
                       cursor: 'pointer',
                       backgroundColor: isSelected ? '#edf2f7' : (conv.unreadCount > 0 ? '#fffaf0' : '#ffffff'),
                       transition: 'background 0.15s ease',
-                      borderLeft: isSelected ? '4px solid #D40511' : '4px solid transparent'
+                      borderLeft: isSelected ? '4px solid #FF6B00' : '4px solid transparent'
                     }}
                   >
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
@@ -930,7 +1125,7 @@ const MessagesView = ({ messages, API_BASE, onMarkRead, onRefresh }) => {
           ) : (
             <>
               {/* Thread Header */}
-              <div style={{ padding: '16px 20px', borderBottom: '1px solid #edf2f7', background: '#D40511', color: '#ffffff', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ padding: '16px 20px', borderBottom: '1px solid #edf2f7', background: '#FF6B00', color: '#ffffff', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>
                   <h3 style={{ margin: 0, fontSize: '16px', fontWeight: '700' }}>{activeConv.name}</h3>
                   <span style={{ fontSize: '12px', opacity: 0.85, fontFamily: 'monospace' }}>{activeConv.email}</span>
@@ -956,15 +1151,15 @@ const MessagesView = ({ messages, API_BASE, onMarkRead, onRefresh }) => {
                       }}
                     >
                       <div style={{ fontSize: '11px', color: '#718096', marginBottom: '4px', display: 'flex', gap: '8px', alignItems: 'center' }}>
-                        <span style={{ fontWeight: '700', color: isAdmin ? '#D40511' : '#2b6cb0' }}>
-                          {isAdmin ? 'DHL Support Admin' : m.customerName}
+                        <span style={{ fontWeight: '700', color: isAdmin ? '#FF6B00' : '#2b6cb0' }}>
+                          {isAdmin ? 'TXL Support Admin' : m.customerName}
                         </span>
                         <span>•</span>
                         <span>{new Date(m.createdAt || Date.now()).toLocaleString()}</span>
                       </div>
                       <div
                         style={{
-                          background: isAdmin ? '#D40511' : '#ffffff',
+                          background: isAdmin ? '#FF6B00' : '#ffffff',
                           color: isAdmin ? '#ffffff' : '#1A1A1A',
                           padding: '14px 16px',
                           borderRadius: isAdmin ? '12px 12px 0 12px' : '12px 12px 12px 0',
@@ -1023,7 +1218,7 @@ const MessagesView = ({ messages, API_BASE, onMarkRead, onRefresh }) => {
                       type="submit"
                       disabled={sending || !replyBody.trim()}
                       style={{
-                        backgroundColor: '#D40511',
+                        backgroundColor: '#FF6B00',
                         color: '#ffffff',
                         fontWeight: '700',
                         fontSize: '14px',
@@ -1136,17 +1331,15 @@ const CustomerChatView = ({ user, insiteMessages, API_BASE, onRefresh }) => {
             width: '48px',
             height: '48px',
             borderRadius: '50%',
-            backgroundColor: '#FFCC00',
-            color: '#D40511',
+            backgroundColor: '#0F172A',
+            color: '#FF6B00',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             fontWeight: '900',
             fontSize: '18px',
             boxShadow: '0 2px 8px rgba(255, 204, 0, 0.3)'
-          }}>
-            DHL
-          </div>
+          }}>TXL</div>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <h2 style={{ fontSize: '20px', fontWeight: '800', color: '#ffffff', margin: 0 }}>
@@ -1248,10 +1441,10 @@ const CustomerChatView = ({ user, insiteMessages, API_BASE, onRefresh }) => {
                 <MessageCircle size={30} />
               </div>
               <h3 style={{ fontSize: '18px', fontWeight: '700', color: '#1a202c', margin: '0 0 6px 0' }}>
-                Welcome to DHL Direct Support
+                Welcome to TXL Direct Support
               </h3>
               <p style={{ color: '#718096', fontSize: '14px', maxWidth: '420px', margin: '0 0 20px 0', lineHeight: 1.5 }}>
-                Send a message below to connect directly with a DHL logistics specialist. We can assist with tracking, customs, or delivery instructions.
+                Send a message below to connect directly with a TXL logistics specialist. We can assist with tracking, customs, or delivery instructions.
               </p>
 
               {/* Quick Prompts */}
@@ -1273,8 +1466,8 @@ const CustomerChatView = ({ user, insiteMessages, API_BASE, onRefresh }) => {
                       boxShadow: '0 1px 2px rgba(0,0,0,0.04)'
                     }}
                     onMouseEnter={(e) => {
-                      e.currentTarget.style.borderColor = '#D40511';
-                      e.currentTarget.style.color = '#D40511';
+                      e.currentTarget.style.borderColor = '#FF6B00';
+                      e.currentTarget.style.color = '#FF6B00';
                     }}
                     onMouseLeave={(e) => {
                       e.currentTarget.style.borderColor = '#cbd5e0';
@@ -1308,15 +1501,15 @@ const CustomerChatView = ({ user, insiteMessages, API_BASE, onRefresh }) => {
                     alignItems: 'center',
                     gap: '6px'
                   }}>
-                    <span style={{ fontWeight: '700', color: isMe ? '#2d3748' : '#D40511' }}>
-                      {isMe ? 'You' : 'DHL Support Agent'}
+                    <span style={{ fontWeight: '700', color: isMe ? '#2d3748' : '#FF6B00' }}>
+                      {isMe ? 'You' : 'TXL Support Agent'}
                     </span>
                     <span>•</span>
                     <span>{new Date(m.createdAt || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                   </div>
 
                   <div style={{
-                    backgroundColor: isMe ? '#D40511' : '#ffffff',
+                    backgroundColor: isMe ? '#FF6B00' : '#ffffff',
                     color: isMe ? '#ffffff' : '#1a202c',
                     padding: '12px 18px',
                     borderRadius: isMe ? '16px 16px 2px 16px' : '16px 16px 16px 2px',
@@ -1351,7 +1544,7 @@ const CustomerChatView = ({ user, insiteMessages, API_BASE, onRefresh }) => {
           >
             <input
               type="text"
-              placeholder="Type your message to DHL Support... (Press Enter to send)"
+              placeholder="Type your message to TXL Support... (Press Enter to send)"
               value={inputText}
               onChange={(e) => setInputText(e.target.value)}
               disabled={sending}
@@ -1369,7 +1562,7 @@ const CustomerChatView = ({ user, insiteMessages, API_BASE, onRefresh }) => {
               type="submit"
               disabled={sending || !inputText.trim()}
               style={{
-                backgroundColor: '#D40511',
+                backgroundColor: '#FF6B00',
                 color: '#ffffff',
                 fontWeight: '700',
                 fontSize: '14px',
@@ -1406,7 +1599,7 @@ const AdminInsiteChatView = ({ insiteMessages, API_BASE, onRefresh }) => {
   const conversations = React.useMemo(() => {
     const groups = {};
     (insiteMessages || []).forEach(m => {
-      const email = (m.customerEmail || 'unknown@dhl.com').toLowerCase().trim();
+      const email = (m.customerEmail || 'unknown@txlglobaltracking.com').toLowerCase().trim();
       if (!groups[email]) {
         groups[email] = {
           email,
@@ -1477,7 +1670,7 @@ const AdminInsiteChatView = ({ insiteMessages, API_BASE, onRefresh }) => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           customerEmail: selectedEmail,
-          customerName: 'DHL Logistics Support',
+          customerName: 'TXL Logistics Support',
           body,
           sender: 'admin'
         })
@@ -1515,7 +1708,7 @@ const AdminInsiteChatView = ({ insiteMessages, API_BASE, onRefresh }) => {
               In-Site Customer Chat
             </h2>
             <span style={{
-              backgroundColor: '#FFCC00',
+              backgroundColor: '#0F172A',
               color: '#000000',
               fontSize: '11px',
               fontWeight: '800',
@@ -1565,7 +1758,7 @@ const AdminInsiteChatView = ({ insiteMessages, API_BASE, onRefresh }) => {
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '340px 1fr', gap: '20px', minHeight: '650px' }}>
+      <div className="messages-split-grid" style={{ display: 'grid', gridTemplateColumns: '340px 1fr', gap: '20px', minHeight: '650px' }}>
         {/* Left Column: Customer Conversations */}
         <div style={{ background: '#ffffff', borderRadius: '8px', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           <div style={{ padding: '16px', borderBottom: '1px solid #edf2f7', background: '#f8fafc' }}>
@@ -1596,7 +1789,7 @@ const AdminInsiteChatView = ({ insiteMessages, API_BASE, onRefresh }) => {
                       cursor: 'pointer',
                       backgroundColor: isSelected ? '#edf2f7' : (conv.unreadCount > 0 ? '#fffaf0' : '#ffffff'),
                       transition: 'background 0.15s ease',
-                      borderLeft: isSelected ? '4px solid #D40511' : '4px solid transparent'
+                      borderLeft: isSelected ? '4px solid #FF6B00' : '4px solid transparent'
                     }}
                   >
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
@@ -1604,7 +1797,7 @@ const AdminInsiteChatView = ({ insiteMessages, API_BASE, onRefresh }) => {
                         {conv.name}
                       </span>
                       {conv.unreadCount > 0 && (
-                        <span style={{ backgroundColor: '#D40511', color: '#fff', fontSize: '11px', fontWeight: '800', padding: '2px 6px', borderRadius: '10px' }}>
+                        <span style={{ backgroundColor: '#FF6B00', color: '#fff', fontSize: '11px', fontWeight: '800', padding: '2px 6px', borderRadius: '10px' }}>
                           {conv.unreadCount} NEW
                         </span>
                       )}
@@ -1641,7 +1834,7 @@ const AdminInsiteChatView = ({ insiteMessages, API_BASE, onRefresh }) => {
                 alignItems: 'center'
               }}>
                 <div>
-                  <h3 style={{ margin: 0, fontSize: '16px', fontWeight: '700', color: '#FFCC00' }}>
+                  <h3 style={{ margin: 0, fontSize: '16px', fontWeight: '700', color: '#0F172A' }}>
                     {activeConv.name}
                   </h3>
                   <span style={{ fontSize: '12px', color: '#cbd5e1', fontFamily: 'monospace' }}>
@@ -1679,15 +1872,15 @@ const AdminInsiteChatView = ({ insiteMessages, API_BASE, onRefresh }) => {
                       }}
                     >
                       <div style={{ fontSize: '11px', color: '#718096', marginBottom: '4px', display: 'flex', gap: '8px', alignItems: 'center' }}>
-                        <span style={{ fontWeight: '700', color: isAdmin ? '#D40511' : '#2b6cb0' }}>
-                          {isAdmin ? 'DHL Logistics Support (You)' : (m.customerName || activeConv.name)}
+                        <span style={{ fontWeight: '700', color: isAdmin ? '#FF6B00' : '#2b6cb0' }}>
+                          {isAdmin ? 'TXL Logistics Support (You)' : (m.customerName || activeConv.name)}
                         </span>
                         <span>•</span>
                         <span>{new Date(m.createdAt || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                       </div>
                       <div
                         style={{
-                          background: isAdmin ? '#D40511' : '#ffffff',
+                          background: isAdmin ? '#FF6B00' : '#ffffff',
                           color: isAdmin ? '#ffffff' : '#1A1A1A',
                           padding: '12px 16px',
                           borderRadius: isAdmin ? '12px 12px 0 12px' : '12px 12px 12px 0',
@@ -1743,7 +1936,7 @@ const AdminInsiteChatView = ({ insiteMessages, API_BASE, onRefresh }) => {
                     type="submit"
                     disabled={sending || !replyText.trim()}
                     style={{
-                      backgroundColor: '#D40511',
+                      backgroundColor: '#FF6B00',
                       color: '#ffffff',
                       fontWeight: '700',
                       fontSize: '14px',
@@ -1773,21 +1966,21 @@ const AdminInsiteChatView = ({ insiteMessages, API_BASE, onRefresh }) => {
 
 const getValidSession = () => {
   try {
-    const savedStr = localStorage.getItem('dhl_user') || localStorage.getItem('ups_user');
+    const savedStr = localStorage.getItem('txl_user') || localStorage.getItem('ups_user');
     if (!savedStr) return null;
     const saved = JSON.parse(savedStr);
 
     // Persist active session across browser refreshes for 7 days (7 * 24 * 60 * 60 * 1000 ms)
     const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
     if (saved.loginTimestamp && (Date.now() - saved.loginTimestamp > SEVEN_DAYS_MS)) {
-      localStorage.removeItem('dhl_user');
+      localStorage.removeItem('txl_user');
       localStorage.removeItem('ups_user');
       return null;
     }
 
     return saved;
   } catch (e) {
-    localStorage.removeItem('dhl_user');
+    localStorage.removeItem('txl_user');
     localStorage.removeItem('ups_user');
     return null;
   }
@@ -1884,18 +2077,20 @@ export default function App() {
   const [formWeight, setFormWeight] = useState('');
   const [formDesc, setFormDesc] = useState('');
   const [formVessel, setFormVessel] = useState('Truck');
-  const [formOrigin, setFormOrigin] = useState('');
-  const [formDestination, setFormDestination] = useState('');
-  const [formOriginCode, setFormOriginCode] = useState('CHI');
-  const [formDestCode, setFormDestCode] = useState('SEA');
+  const [formOriginCode, setFormOriginCode] = useState('LHR');
+  const [formDestCode, setFormDestCode] = useState('EDI');
+  const [formOrigin, setFormOrigin] = useState(formatHubLocationText('LHR'));
+  const [formDestination, setFormDestination] = useState(formatHubLocationText('EDI'));
   const [formEta, setFormEta] = useState('2026-07-25');
-  const [formRouteConfig, setFormRouteConfig] = useState('CHI-KC-DEN-SEA');
+  const [formRouteConfig, setFormRouteConfig] = useState('LHR-EMA-MAN-EDI');
   const [formMsg, setFormMsg] = useState({ type: '', text: '' });
-  const [formTrackingId, setFormTrackingId] = useState(`DHL-${Math.floor(10000000 + Math.random() * 90000000)}`);
+  const [formTrackingId, setFormTrackingId] = useState(`TXL-${Math.floor(10000000 + Math.random() * 90000000)}`);
   const [formShipmentType, setFormShipmentType] = useState('Standard');
   const [formInitialStatus, setFormInitialStatus] = useState('Manifest Prepared');
   const [formInternalNotes, setFormInternalNotes] = useState('');
   const [credentialsModal, setCredentialsModal] = useState(null);
+  const [isDraggingImage, setIsDraggingImage] = useState(false);
+  const [photoPreviewModal, setPhotoPreviewModal] = useState(null);
   const [showCustomerTrackPrompt, setShowCustomerTrackPrompt] = useState(false);
   const [customerTrackInput, setCustomerTrackInput] = useState('');
   const [trackPromptError, setTrackPromptError] = useState('');
@@ -2136,7 +2331,7 @@ export default function App() {
           ...data,
           loginTimestamp: Date.now()
         };
-        localStorage.setItem('dhl_user', JSON.stringify(sessionData));
+        localStorage.setItem('txl_user', JSON.stringify(sessionData));
         setUser(sessionData);
         userRef.current = sessionData;
 
@@ -2152,7 +2347,7 @@ export default function App() {
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('dhl_user');
+    localStorage.removeItem('txl_user');
     localStorage.removeItem('ups_user');
     setUser(null);
     userRef.current = null;
@@ -2162,7 +2357,7 @@ export default function App() {
 
   // 2. Direct Role switch bypass (for testing/proto verification)
   const handleRoleBypass = async (role) => {
-    localStorage.removeItem('dhl_user');
+    localStorage.removeItem('txl_user');
     localStorage.removeItem('ups_user');
     setUser(null);
     userRef.current = null;
@@ -2172,12 +2367,12 @@ export default function App() {
       return;
     }
 
-    const testEmail = role === 'admin' ? 'admin@dhl.com' : 'customer@dhl.com';
+    const testEmail = role === 'admin' ? 'admin@txlglobaltracking.com' : 'customer@txlglobaltracking.com';
     try {
       const res = await fetch(`${API_BASE}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: testEmail, password: role === 'admin' ? 'admin123' : 'dhl123' })
+        body: JSON.stringify({ email: testEmail, password: role === 'admin' ? 'admin123' : 'txl123' })
       });
       const data = await res.json();
       if (res.ok) {
@@ -2185,7 +2380,7 @@ export default function App() {
           ...data,
           loginTimestamp: Date.now()
         };
-        localStorage.setItem('dhl_user', JSON.stringify(sessionData));
+        localStorage.setItem('txl_user', JSON.stringify(sessionData));
         setUser(sessionData);
         userRef.current = sessionData;
         window.location.hash = role === 'admin' ? '#admin' : '#dashboard';
@@ -2221,7 +2416,9 @@ export default function App() {
       originCode: formOriginCode,
       destCode: formDestCode,
       eta: formEta,
-      waypoints: waypointsArray
+      waypoints: waypointsArray,
+      packageImage: formUploadedImage?.base64 || '',
+      internalNotes: formInternalNotes || ''
     };
 
     try {
@@ -2246,7 +2443,7 @@ export default function App() {
         setFormUploadedImage(null);
         setFormWeight('');
         setFormDesc('');
-        setFormTrackingId(`DHL-${Math.floor(10000000 + Math.random() * 90000000)}`);
+        setFormTrackingId(`TXL-${Math.floor(10000000 + Math.random() * 90000000)}`);
         setFormInternalNotes('');
         fetchShipments();
         fetchStats();
@@ -2258,19 +2455,55 @@ export default function App() {
     }
   };
 
-  const handleImageUpload = (e) => {
-    const file = e.target.files[0];
+  const processImageFile = (file) => {
     if (!file) return;
+    if (!file.type || !file.type.startsWith('image/')) {
+      alert('Please upload a valid image file (PNG, JPG, WEBP).');
+      return;
+    }
     const reader = new FileReader();
-    reader.onloadend = () => {
-      const sizeInMB = (file.size / (1024 * 1024)).toFixed(1);
-      setFormUploadedImage({
-        name: file.name,
-        size: `${sizeInMB} MB`,
-        base64: reader.result
-      });
+    reader.onload = (readerEvent) => {
+      const img = new Image();
+      img.onload = () => {
+        // Compress and scale down to max 1280px dimension to ensure instant upload and email compatibility
+        const maxDim = 1280;
+        let width = img.width;
+        let height = img.height;
+        if (width > maxDim || height > maxDim) {
+          if (width > height) {
+            height = Math.round((height * maxDim) / width);
+            width = maxDim;
+          } else {
+            width = Math.round((width * maxDim) / height);
+            height = maxDim;
+          }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+
+        const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.84);
+        const approxBytes = Math.round(compressedDataUrl.length * 0.75);
+        const formattedSize = approxBytes > 1024 * 1024 
+          ? `${(approxBytes / (1024 * 1024)).toFixed(1)} MB` 
+          : `${Math.round(approxBytes / 1024)} KB`;
+
+        setFormUploadedImage({
+          name: file.name,
+          size: formattedSize,
+          base64: compressedDataUrl
+        });
+      };
+      img.src = readerEvent.target.result;
     };
     reader.readAsDataURL(file);
+  };
+
+  const handleImageUpload = (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (file) processImageFile(file);
   };
 
   const handleUpdateSimShipmentVessel = async (newVessel) => {
@@ -2611,7 +2844,7 @@ export default function App() {
               </svg>
             </button>
             <div className="header-branding" onClick={() => window.location.hash = '#home'}>
-              <div className="logo-dhl">DHL</div>
+              <div className="logo-txl">TXL</div>
               <span className="portal-title">Express Logistics</span>
             </div>
 
@@ -2637,7 +2870,7 @@ export default function App() {
                     Administrator Profile
                   </span>
                   <span className="profile-role">
-                    Fleet Manager ID: #DHL-8821
+                    Fleet Manager ID: #TXL-8821
                   </span>
                 </div>
                 <img 
@@ -2651,7 +2884,7 @@ export default function App() {
         ) : (
           <header className="main-header landing-header">
             <div className="header-branding" onClick={() => window.location.hash = '#home'}>
-              <div className="logo-dhl">DHL</div>
+              <div className="logo-txl">TXL</div>
               <span className="portal-title">Express Logistics</span>
             </div>
 
@@ -2677,7 +2910,7 @@ export default function App() {
               <span className="sidebar-brand-sub">Enterprise Portal</span>
             </div>
 
-            <nav className="sidebar-nav-links">
+            <nav className="sidebar-nav-links" onClick={() => setMobileSidebarOpen(false)}>
               {user.role === 'customer' ? (
                 <>
                   <a href="#dashboard" className={`sidebar-link ${activeTab === 'dashboard' ? 'active' : ''}`}>
@@ -2700,7 +2933,7 @@ export default function App() {
                     {customerInsiteUnreadCount > 0 && (
                       <span style={{
                         marginLeft: 'auto',
-                        backgroundColor: '#D40511',
+                        backgroundColor: '#FF6B00',
                         color: '#ffffff',
                         fontSize: '0.7rem',
                         fontWeight: '800',
@@ -2728,7 +2961,7 @@ export default function App() {
                     {adminInsiteUnreadCount > 0 && (
                       <span style={{
                         marginLeft: 'auto',
-                        backgroundColor: '#D40511',
+                        backgroundColor: '#FF6B00',
                         color: '#ffffff',
                         fontSize: '0.7rem',
                         fontWeight: '800',
@@ -2770,7 +3003,7 @@ export default function App() {
               )}
             </nav>
 
-            <div className="sidebar-bottom-links">
+            <div className="sidebar-bottom-links" onClick={() => setMobileSidebarOpen(false)}>
               {user.role === 'admin' && (
                 <a href="#dashboard" className="sidebar-link bottom-link" onClick={(e) => { e.preventDefault(); alert("Assistance request flagged. A representative will contact you shortly."); }}>
                   <Users className="nav-icon" /> Support
@@ -2986,7 +3219,7 @@ export default function App() {
                     <span className="sticker-bullet">▶</span>
                     <span>Official Video Overview</span>
                   </div>
-                  <h2 style={{ fontSize: '2rem', fontWeight: '800', margin: '0 0 10px 0' }}>Inside the DHL Smart Logistics Network</h2>
+                  <h2 style={{ fontSize: '2rem', fontWeight: '800', margin: '0 0 10px 0' }}>Inside the TXL Smart Logistics Network</h2>
                   <p style={{ color: '#cbd5e1', maxWidth: '650px', margin: '0 auto', fontSize: '0.95rem' }}>
                     Watch how our automated sorting hubs, live GPS telemetry, and AI dispatch manage over 15 million packages daily with zero delivery friction.
                   </p>
@@ -2995,9 +3228,9 @@ export default function App() {
                 <div className="video-card-wrapper">
                   <div 
                     className="video-thumbnail-container"
-                    onClick={() => alert("DHL Smart Logistics Showcase Video:\n\n'Inside the Global Parcel & Fleet Telemetry System'\n\n(Video player feature preview is ready - click OK to close)")}
+                    onClick={() => alert("TXL Smart Logistics Showcase Video:\n\n'Inside the Global Parcel & Fleet Telemetry System'\n\n(Video player feature preview is ready - click OK to close)")}
                   >
-                    <img className="video-thumb-img" src="/hero-bg-2.jpg" alt="Inside DHL Global Logistics Operations" />
+                    <img className="video-thumb-img" src="/hero-bg-2.jpg" alt="Inside TXL Global Logistics Operations" />
                     <div className="video-overlay-gradient"></div>
                     
                     {/* Play Button Overlay */}
@@ -3014,7 +3247,7 @@ export default function App() {
 
                     {/* Bottom Caption Overlay */}
                     <div className="video-caption-block">
-                      <div className="video-channel-tag">DHL GLOBAL LOGISTICS DISPATCH</div>
+                      <div className="video-channel-tag">TXL GLOBAL LOGISTICS DISPATCH</div>
                       <h3 className="video-title">Next-Generation Automated Sorting & Fleet Telemetry</h3>
                     </div>
                   </div>
@@ -3030,7 +3263,7 @@ export default function App() {
                   </div>
                   <h2 style={{ fontSize: '2rem', fontWeight: '800', margin: '0 0 10px 0' }}>What Our Customers Say</h2>
                   <p style={{ color: '#cbd5e1', maxWidth: '600px', margin: '0 auto', fontSize: '0.95rem' }}>
-                    Read real experiences from business owners and individuals who rely on DHL Global Logistics every day.
+                    Read real experiences from business owners and individuals who rely on TXL Global Logistics every day.
                   </p>
                 </div>
 
@@ -3085,7 +3318,7 @@ export default function App() {
                       ★★★★★ <span className="review-rating-score">5.0 / 5.0</span>
                     </div>
                     <p className="review-comment-text">
-                      "We switch shipping companies all the time for our online store, but DHL has been by far the most reliable. No missing tracking numbers, no weird email bugs. Our customers get their login links immediately and stop emailing support asking 'where is my package'. Worth every penny."
+                      "We switch shipping companies all the time for our online store, but TXL has been by far the most reliable. No missing tracking numbers, no weird email bugs. Our customers get their login links immediately and stop emailing support asking 'where is my package'. Worth every penny."
                     </p>
                     <div className="review-date-badge">Verified Customer Review &bull; July 2026</div>
                   </div>
@@ -3104,7 +3337,7 @@ export default function App() {
 
                 <div className="faq-grid">
                   <div className="faq-card">
-                    <h4 className="faq-question">How do I track my DHL package live?</h4>
+                    <h4 className="faq-question">How do I track my TXL package live?</h4>
                     <p className="faq-answer">Enter your Tracking ID into the top search bar, or log in to your Customer Portal to watch your parcel's exact GPS location and route waypoints in real-time on our interactive map.</p>
                   </div>
                   <div className="faq-card">
@@ -3126,7 +3359,7 @@ export default function App() {
               <div className="cta-banner-wrapper">
                 <div className="cta-banner-card">
                   <h2>Ready to Optimize Your Logistics?</h2>
-                  <p>Join thousands of enterprises using DHL Express Logistics Portal to scale their delivery operations efficiently.</p>
+                  <p>Join thousands of enterprises using TXL Express Logistics Portal to scale their delivery operations efficiently.</p>
                   <div className="cta-action-row">
                     <button className="btn-cta-black" onClick={() => window.location.hash = '#login'}>Create Business Account</button>
                     <button className="btn-cta-outline" onClick={() => window.location.hash = '#login'}>Contact Sales Expert</button>
@@ -3138,7 +3371,7 @@ export default function App() {
               <footer className="global-footer">
                 <div className="footer-columns-grid">
                   <div className="footer-info-brand">
-                    <h3>DHL Express Global Logistics</h3>
+                    <h3>TXL Express Global Logistics</h3>
                     <p>Connecting businesses and communities worldwide through innovative logistics and shipping solutions.</p>
                   </div>
 
@@ -3184,7 +3417,7 @@ export default function App() {
                 <div className="footer-divider-line"></div>
 
                 <div className="footer-bottom-row">
-                  <span>© 2026 Deutsche Post DHL Group. All rights reserved.</span>
+                  <span>© 2026 TXL Express Global Logistics. All rights reserved.</span>
                   <div className="footer-bottom-links">
                     <a href="#home">Privacy Notice</a>
                     <a href="#home">Service Terms</a>
@@ -3208,7 +3441,7 @@ export default function App() {
 
               <div className="login-wrapper-outer">
                 {/* Shield badge */}
-                <div className="login-shield-badge">DHL</div>
+                <div className="login-shield-badge">TXL</div>
 
                 <h2 className="login-brand-title">Logistics Portal</h2>
                 <p className="login-brand-tagline">Manage your global fleet and shipments</p>
@@ -3345,7 +3578,7 @@ export default function App() {
 
               {/* Footer attribution */}
               <footer className="portal-footer-note select-none">
-                <p>© 2026 Deutsche Post DHL Group. All rights reserved.</p>
+                <p>© 2026 TXL Express Global Logistics. All rights reserved.</p>
                 <div className="portal-footer-links">
                   <a href="#dashboard" onClick={(e) => { e.preventDefault(); alert("Privacy Notice details logged under enterprise guidelines."); }}>Privacy Policy</a>
                   <a href="#dashboard" onClick={(e) => { e.preventDefault(); alert("Service terms registered."); }}>Terms of Use</a>
@@ -3426,16 +3659,16 @@ export default function App() {
                       let originSub = '';
                       let destSub = '';
                       
-                      if (shipment.id === 'DHL-8271-4492') {
+                      if (shipment.id === 'TXL-8271-4492') {
                         originSub = 'Changi Logistics Hub';
                         destSub = 'Brandenburg Facility';
-                      } else if (shipment.id === 'DHL-9302-1184') {
+                      } else if (shipment.id === 'TXL-9302-1184') {
                         originSub = 'Terminal 4 Cargo';
                         destSub = 'Heathrow Distribution';
-                      } else if (shipment.id === 'DHL-7721-0032') {
+                      } else if (shipment.id === 'TXL-7721-0032') {
                         originSub = 'Haneda Port Services';
                         destSub = "Ontario Int'l Depot";
-                      } else if (shipment.id === 'DHL-1104-9923') {
+                      } else if (shipment.id === 'TXL-1104-9923') {
                         originSub = "Al Maktoum Int'l";
                         destSub = 'Navi Mumbai Port';
                       } else {
@@ -3453,7 +3686,7 @@ export default function App() {
                         <tr key={shipment.id}>
                           <td className="tracking-num-cell">
                             <div className="table-package-icon">
-                              <Package style={{ width: '15px', height: '15px', color: '#D40511' }} />
+                              <Package style={{ width: '15px', height: '15px', color: '#FF6B00' }} />
                             </div>
                             <span className="bold-num">{shipment.id}</span>
                           </td>
@@ -3478,16 +3711,16 @@ export default function App() {
                           <td>
                             <div className="delivery-cell">
                               <span className="delivery-date">
-                                {shipment.id === 'DHL-8271-4492' ? 'Oct 24, 2023' : 
-                                 shipment.id === 'DHL-9302-1184' ? 'Oct 26, 2023' :
-                                 shipment.id === 'DHL-7721-0032' ? 'Oct 22, 2023' :
-                                 shipment.id === 'DHL-1104-9923' ? 'Today' : shipment.eta}
+                                {shipment.id === 'TXL-8271-4492' ? 'Oct 24, 2023' : 
+                                 shipment.id === 'TXL-9302-1184' ? 'Oct 26, 2023' :
+                                 shipment.id === 'TXL-7721-0032' ? 'Oct 22, 2023' :
+                                 shipment.id === 'TXL-1104-9923' ? 'Today' : shipment.eta}
                               </span>
                               <span className={`delivery-time-info ${shipment.status === 'Delayed' ? 'text-red' : ''}`}>
-                                {shipment.id === 'DHL-8271-4492' && 'by 18:00 PM'}
-                                {shipment.id === 'DHL-9302-1184' && 'Scheduled'}
-                                {shipment.id === 'DHL-7721-0032' && 'Overdue'}
-                                {shipment.id === 'DHL-1104-9923' && 'Expected 2h'}
+                                {shipment.id === 'TXL-8271-4492' && 'by 18:00 PM'}
+                                {shipment.id === 'TXL-9302-1184' && 'Scheduled'}
+                                {shipment.id === 'TXL-7721-0032' && 'Overdue'}
+                                {shipment.id === 'TXL-1104-9923' && 'Expected 2h'}
                               </span>
                             </div>
                           </td>
@@ -3574,12 +3807,12 @@ export default function App() {
                     </button>
                   </div>
                   <div style={{ background: 'var(--card-bg, #2a2521)', border: '1px solid var(--border-color, #3a322c)', borderRadius: '12px', padding: '40px', maxWidth: '600px', margin: '0 auto', boxShadow: '0 8px 30px rgba(0,0,0,0.3)' }}>
-                    <Package style={{ width: '48px', height: '48px', color: '#FFCC00', marginBottom: '16px' }} />
+                    <Package style={{ width: '48px', height: '48px', color: '#0F172A', marginBottom: '16px' }} />
                     <h2 style={{ fontSize: '1.5rem', fontWeight: '800', marginBottom: '10px', color: '#fff' }}>
                       Loading Telemetry for Shipment #{selectedShipmentId || 'Unknown'}...
                     </h2>
                     <p style={{ color: '#cbd5e1', fontSize: '0.95rem', marginBottom: '24px' }}>
-                      Connecting to DHL Express Global Tracking database to load parcel telemetry.
+                      Connecting to TXL Express Global Tracking database to load parcel telemetry.
                     </p>
                     <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
                       <button 
@@ -3633,9 +3866,9 @@ export default function App() {
               }
             })();
 
-            const displayWeight = activeShipment.id === 'DHL-8271-4492' ? '1,240.50 kg' : `${(activeShipment.weight || 0).toLocaleString()} lbs`;
+            const displayWeight = activeShipment.id === 'TXL-8271-4492' ? '1,240.50 kg' : `${(activeShipment.weight || 0).toLocaleString()} lbs`;
             const transportDesc = activeShipment.vessel === 'Plane' ? 'Express Air Freight' : activeShipment.vessel === 'Ship' ? 'Ocean Cargo Freight' : 'Expedited Ground Freight';
-            const packageDesc = activeShipment.id === 'DHL-8271-4492' ? '3x Euro Pallet' : activeShipment.desc || 'Standard Freight';
+            const packageDesc = activeShipment.id === 'TXL-8271-4492' ? '3x Euro Pallet' : activeShipment.desc || 'Standard Freight';
             const serviceLevel = activeShipment.vessel === 'Plane' ? 'Priority Global' : activeShipment.vessel === 'Ship' ? 'Standard Economy' : 'Next-Day Ground';
 
             // Next update countdown dynamically relative to progress
@@ -3660,7 +3893,7 @@ export default function App() {
                 {!user && (
                   <div style={{
                     background: 'linear-gradient(to right, rgba(255, 185, 0, 0.15), rgba(53, 28, 21, 0.6))',
-                    border: '1px solid #FFCC00',
+                    border: '1px solid #0F172A',
                     borderRadius: '8px',
                     padding: '16px 24px',
                     marginBottom: '20px',
@@ -3671,7 +3904,7 @@ export default function App() {
                     gap: '15px'
                   }}>
                     <div>
-                      <h4 style={{ margin: '0 0 4px 0', color: '#FFCC00', fontSize: '1rem', fontWeight: '700' }}>
+                      <h4 style={{ margin: '0 0 4px 0', color: '#0F172A', fontSize: '1rem', fontWeight: '700' }}>
                         Live Email Tracking Telemetry
                       </h4>
                       <p style={{ margin: 0, color: '#e2e8f0', fontSize: '0.85rem' }}>
@@ -3717,6 +3950,71 @@ export default function App() {
                     </button>
                   )}
                 </div>
+
+                {/* VERIFIED PACKAGE INTAKE PHOTO CARD */}
+                {activeShipment.packageImage && (
+                  <div className="package-intake-photo-card" style={{
+                    background: 'var(--card-bg, #1e293b)',
+                    border: '1px solid var(--border-color, #334155)',
+                    borderRadius: '12px',
+                    padding: '16px 20px',
+                    marginBottom: '20px',
+                    display: 'flex',
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    gap: '20px',
+                    flexWrap: 'wrap',
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+                  }}>
+                    <div 
+                      style={{
+                        position: 'relative',
+                        cursor: 'pointer',
+                        borderRadius: '8px',
+                        overflow: 'hidden',
+                        border: '2px solid #FF6B00',
+                        boxShadow: '0 4px 12px rgba(0,0,0,0.25)',
+                        maxWidth: '220px',
+                        maxHeight: '140px'
+                      }}
+                      onClick={() => setPhotoPreviewModal(activeShipment.packageImage)}
+                      title="Click to view full photo"
+                    >
+                      <img 
+                        src={activeShipment.packageImage} 
+                        alt="Verified package cargo inspection" 
+                        style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} 
+                      />
+                      <div style={{
+                        position: 'absolute',
+                        bottom: 0,
+                        left: 0,
+                        right: 0,
+                        background: 'rgba(15, 23, 42, 0.85)',
+                        color: '#ffffff',
+                        fontSize: '0.7rem',
+                        padding: '3px 6px',
+                        textAlign: 'center',
+                        fontWeight: 'bold'
+                      }}>
+                        🔍 Click to Enlarge
+                      </div>
+                    </div>
+
+                    <div style={{ flex: 1, minWidth: '220px' }}>
+                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'rgba(34, 197, 94, 0.15)', border: '1px solid #22c55e', borderRadius: '4px', padding: '2px 8px', fontSize: '0.72rem', color: '#4ade80', fontWeight: 'bold', marginBottom: '6px' }}>
+                        <span>✓ VERIFIED INTAKE PHOTOGRAPH</span>
+                      </div>
+                      <h4 style={{ margin: '0 0 4px 0', fontSize: '1.05rem', color: 'var(--text-primary, #ffffff)' }}>Visual Cargo Inspection Verified</h4>
+                      <p style={{ margin: '0 0 8px 0', fontSize: '0.82rem', color: 'var(--text-secondary, #94a3b8)', lineHeight: '1.4' }}>
+                        Official carrier photograph captured at origin cargo intake facility. Sealed and registered under Tracking ID <strong style={{ color: '#FF6B00' }}>#{activeShipment.id}</strong>.
+                      </p>
+                      <div style={{ fontSize: '0.75rem', color: '#94a3b8' }}>
+                        Origin: {activeShipment.origin || 'Carrier Hub'} &bull; Destination: {activeShipment.destination || 'Delivery Point'}
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {/* METADATA MATRIX CARD */}
                 <div className="details-top-card-grid">
@@ -3996,7 +4294,15 @@ export default function App() {
                           return (
                             <tr key={s.id}>
                               <td className="shipment-id-cell" onClick={() => window.location.hash = `#details?id=${s.id}`}>
-                                <Package className="table-row-pkg-icon" />
+                                {s.packageImage ? (
+                                  <img 
+                                    src={s.packageImage} 
+                                    alt="pkg" 
+                                    style={{ width: '28px', height: '28px', borderRadius: '4px', objectFit: 'cover', border: '1px solid #FF6B00', marginRight: '8px', flexShrink: 0 }} 
+                                  />
+                                ) : (
+                                  <Package className="table-row-pkg-icon" />
+                                )}
                                 <span className="bold-id-text">{s.id}</span>
                               </td>
                               <td>
@@ -4016,7 +4322,7 @@ export default function App() {
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                   <button 
                                     className="btn-tracker-filter" 
-                                    style={{ padding: '6px 10px', height: 'auto', fontSize: '0.8rem', background: 'rgba(255, 185, 0, 0.08)', border: '1px solid rgba(255, 185, 0, 0.3)', color: '#FFCC00' }}
+                                    style={{ padding: '6px 10px', height: 'auto', fontSize: '0.8rem', background: 'rgba(255, 185, 0, 0.08)', border: '1px solid rgba(255, 185, 0, 0.3)', color: '#0F172A' }}
                                     onClick={() => {
                                       setSimActiveShipmentId(s.id);
                                       window.location.hash = '#appointment';
@@ -4304,7 +4610,7 @@ export default function App() {
 
                           <div className="form-double-row mt-15">
                             <div className="input-field">
-                              <label>ORIGIN STATE / HUB</label>
+                              <label>ORIGIN HUB / CHECKPOINT (UK, US &amp; INTL)</label>
                               <div className="origin-hub-flex-input">
                                 <select 
                                   className="hub-code-select" 
@@ -4313,21 +4619,24 @@ export default function App() {
                                     const code = e.target.value;
                                     setFormOriginCode(code);
                                     setFormOrigin(formatHubLocationText(code));
+                                    const autoSequence = calculateSmartRoute(code, formDestCode);
+                                    setFormRouteConfig(autoSequence);
                                   }}
                                 >
                                   {renderCategorizedHubOptions()}
                                 </select>
                                 <input 
                                   type="text" 
-                                  placeholder="Dallas/Fort Worth, TX - DFW01"
+                                  placeholder="e.g. 🇬🇧 London Heathrow Superhub (LHR)"
                                   value={formOrigin}
                                   onChange={(e) => setFormOrigin(e.target.value)}
+                                  style={{ flex: 1 }}
                                 />
                               </div>
                             </div>
                             
                             <div className="input-field">
-                              <label>DESTINATION STATE / HUB</label>
+                              <label>DESTINATION HUB / CHECKPOINT (UK, US &amp; INTL)</label>
                               <div className="dest-hub-flex-input">
                                 <select 
                                   className="hub-code-select" 
@@ -4336,15 +4645,18 @@ export default function App() {
                                     const code = e.target.value;
                                     setFormDestCode(code);
                                     setFormDestination(formatHubLocationText(code));
+                                    const autoSequence = calculateSmartRoute(formOriginCode, code);
+                                    setFormRouteConfig(autoSequence);
                                   }}
                                 >
                                   {renderCategorizedHubOptions()}
                                 </select>
                                 <input 
                                   type="text" 
-                                  placeholder="Miami, FL - MIA01"
+                                  placeholder="e.g. 🇺🇸 New York JFK Air Cargo (JFK)"
                                   value={formDestination}
                                   onChange={(e) => setFormDestination(e.target.value)}
+                                  style={{ flex: 1 }}
                                 />
                               </div>
                             </div>
@@ -4392,14 +4704,111 @@ export default function App() {
                           </div>
                           
                           <div className="input-field mt-15">
-                            <label>SIMULATION SEQUENCE (ROUTE HASH)</label>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                              <label style={{ margin: 0 }}>SMART SIMULATION SEQUENCE (ROUTE HASH)</label>
+                              <div style={{ display: 'flex', gap: '6px' }}>
+                                <button 
+                                  type="button" 
+                                  onClick={() => {
+                                    const autoSeq = calculateSmartRoute(formOriginCode, formDestCode);
+                                    setFormRouteConfig(autoSeq);
+                                  }}
+                                  style={{
+                                    background: 'rgba(255, 107, 0, 0.1)',
+                                    border: '1px solid #FF6B00',
+                                    color: '#FF6B00',
+                                    borderRadius: '4px',
+                                    padding: '3px 8px',
+                                    fontSize: '0.75rem',
+                                    fontWeight: '700',
+                                    cursor: 'pointer',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '4px'
+                                  }}
+                                  title="Automatically calculate the optimal freight corridor path"
+                                >
+                                  <span>⚡ AI Auto-Route</span>
+                                </button>
+                                <button 
+                                  type="button" 
+                                  onClick={() => setFormRouteConfig(`${formOriginCode}-${formDestCode}`)}
+                                  style={{
+                                    background: '#F1F5F9',
+                                    border: '1px solid #CBD5E1',
+                                    color: '#475569',
+                                    borderRadius: '4px',
+                                    padding: '3px 8px',
+                                    fontSize: '0.75rem',
+                                    fontWeight: '600',
+                                    cursor: 'pointer'
+                                  }}
+                                  title="Direct non-stop path between origin and destination"
+                                >
+                                  <span>Direct Express</span>
+                                </button>
+                              </div>
+                            </div>
+
                             <input 
                               type="text" 
-                              placeholder="e.g. LA-KC-CHI-NY"
+                              placeholder="e.g. LHR-EMA-MAN-EDI or LAX-DEN-ORD-JFK"
                               value={formRouteConfig}
                               onChange={(e) => setFormRouteConfig(e.target.value)}
                             />
-                            <small style={{display: 'block', color: 'var(--text-secondary)', marginTop: '4px', fontSize: '0.78rem'}}>Waypoints separated by dash (available: CHI, KC, DEN, SEA, NY, CLE, LA, MIA, ATL, PHX, SF)</small>
+
+                            {/* Live Route Breadcrumbs Preview */}
+                            {formRouteConfig && (
+                              <div style={{
+                                display: 'flex',
+                                flexWrap: 'wrap',
+                                alignItems: 'center',
+                                gap: '6px',
+                                marginTop: '8px',
+                                padding: '8px 12px',
+                                background: 'var(--bg-secondary)',
+                                border: '1px solid var(--border-color)',
+                                borderRadius: '6px'
+                              }}>
+                                <span style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-secondary)', textTransform: 'uppercase', marginRight: '4px' }}>
+                                  Live Waypoints:
+                                </span>
+                                {formRouteConfig.split('-').map((wp, idx, arr) => {
+                                  const cleanWp = wp.trim().toUpperCase();
+                                  const hub = GLOBAL_LOGISTICS_HUBS[cleanWp];
+                                  const isStart = idx === 0;
+                                  const isEnd = idx === arr.length - 1;
+                                  const flag = hub?.flag || '📍';
+                                  const name = hub ? hub.name : cleanWp;
+                                  return (
+                                    <React.Fragment key={idx}>
+                                      <span style={{
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '4px',
+                                        padding: '2px 8px',
+                                        borderRadius: '4px',
+                                        fontSize: '0.78rem',
+                                        fontWeight: '700',
+                                        background: isStart ? '#DCFCE7' : isEnd ? '#FEE2E2' : '#FFEDD5',
+                                        color: isStart ? '#15803D' : isEnd ? '#B91C1C' : '#C2410C',
+                                        border: `1px solid ${isStart ? '#86EFAC' : isEnd ? '#FCA5A5' : '#FDBA74'}`
+                                      }} title={`${name} (${cleanWp})`}>
+                                        <span>{flag}</span>
+                                        <span>{cleanWp}</span>
+                                      </span>
+                                      {idx < arr.length - 1 && (
+                                        <span style={{ color: '#94A3B8', fontSize: '0.8rem', fontWeight: 'bold' }}>&rarr;</span>
+                                      )}
+                                    </React.Fragment>
+                                  );
+                                })}
+                              </div>
+                            )}
+
+                            <small style={{display: 'block', color: 'var(--text-secondary)', marginTop: '6px', fontSize: '0.78rem'}}>
+                              Optimal route sequence generated automatically. You can freely edit or type any station codes separated by dash (-).
+                            </small>
                           </div>
                         </div>
                       </div>
@@ -4416,13 +4825,30 @@ export default function App() {
                         
                         <div className="card-body">
                           <div 
-                            className="upload-dropzone" 
+                            className={`upload-dropzone ${isDraggingImage ? 'dropzone-active' : ''}`}
                             onClick={() => document.getElementById('package-image-upload').click()}
-                            style={{ cursor: 'pointer' }}
+                            onDragOver={(e) => {
+                              e.preventDefault();
+                              setIsDraggingImage(true);
+                            }}
+                            onDragLeave={() => setIsDraggingImage(false)}
+                            onDrop={(e) => {
+                              e.preventDefault();
+                              setIsDraggingImage(false);
+                              if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+                                processImageFile(e.dataTransfer.files[0]);
+                              }
+                            }}
+                            style={{ 
+                              cursor: 'pointer',
+                              border: isDraggingImage ? '2px dashed #FF6B00' : undefined,
+                              backgroundColor: isDraggingImage ? 'rgba(255, 107, 0, 0.08)' : undefined,
+                              transition: 'all 0.2s ease'
+                            }}
                           >
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="upload-cloud-icon"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-                            <span className="dropzone-text">Click to upload or drag & drop</span>
-                            <span className="dropzone-sub">PNG, JPG up to 10MB</span>
+                            <span className="dropzone-text">{isDraggingImage ? 'Release to upload package photo' : 'Click to upload or drag & drop'}</span>
+                            <span className="dropzone-sub">PNG, JPG up to 10MB &bull; Auto-optimized</span>
                             <input 
                               type="file" 
                               id="package-image-upload" 
@@ -4434,24 +4860,37 @@ export default function App() {
                           
                           {formUploadedImage ? (
                             <div className="uploaded-files-list">
-                              <div className="file-list-item">
-                                <img 
-                                  className="file-preview-img-icon" 
-                                  src={formUploadedImage.base64} 
-                                  alt="shipment box" 
-                                  style={{width: '32px', height: '32px', borderRadius: '4px', objectFit: 'cover'}} 
-                                />
-                                <div className="file-item-meta">
-                                  <span className="file-item-name">{formUploadedImage.name}</span>
-                                  <span className="file-item-size">{formUploadedImage.size} &bull; Ready</span>
+                              <div className="file-list-item" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px', background: 'var(--bg-secondary, #0f172a)', borderRadius: '8px', border: '1px solid var(--border-color, #334155)', marginTop: '12px' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }} onClick={() => setPhotoPreviewModal(formUploadedImage.base64)}>
+                                  <img 
+                                    className="file-preview-img-icon" 
+                                    src={formUploadedImage.base64} 
+                                    alt="shipment package preview" 
+                                    style={{width: '42px', height: '42px', borderRadius: '6px', objectFit: 'cover', border: '1px solid #FF6B00'}} 
+                                  />
+                                  <div className="file-item-meta">
+                                    <span className="file-item-name" style={{ fontWeight: '600', color: 'var(--text-primary, #ffffff)', fontSize: '0.85rem', display: 'block' }}>{formUploadedImage.name}</span>
+                                    <span className="file-item-size" style={{ fontSize: '0.75rem', color: '#10B981' }}>{formUploadedImage.size} &bull; ✓ Ready to Save & Email</span>
+                                  </div>
                                 </div>
-                                <button 
-                                  type="button" 
-                                  className="btn-delete-file" 
-                                  onClick={() => setFormUploadedImage(null)}
-                                >
-                                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{width: '16px', height: '16px'}}><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-                                </button>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                  <button
+                                    type="button"
+                                    onClick={() => setPhotoPreviewModal(formUploadedImage.base64)}
+                                    style={{ background: 'none', border: 'none', color: '#FF6B00', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 'bold' }}
+                                    title="Preview Full Photo"
+                                  >
+                                    View
+                                  </button>
+                                  <button 
+                                    type="button" 
+                                    className="btn-delete-file" 
+                                    onClick={() => setFormUploadedImage(null)}
+                                    title="Remove Photo"
+                                  >
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{width: '16px', height: '16px'}}><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                                  </button>
+                                </div>
                               </div>
                             </div>
                           ) : (
@@ -4478,7 +4917,7 @@ export default function App() {
                           />
                           <div className="notes-privacy-banner">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="lock-icon" style={{width: '12px', height: '12px'}}><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-                            <span>These notes are only visible to DHL staff.</span>
+                            <span>These notes are only visible to TXL staff.</span>
                           </div>
                         </div>
                       </div>
@@ -4542,7 +4981,7 @@ export default function App() {
                           <div className="control-group mt-10">
                             <label>ORDER HUB</label>
                             <div className="mock-control-input-read">
-                              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{width: '14px', height: '14px', color: '#FFCC00'}}><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>
+                              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{width: '14px', height: '14px', color: '#0F172A'}}><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>
                               <span>{selectedShipmentForSim?.originCode || 'LAX-04'}</span>
                             </div>
                           </div>
@@ -4749,7 +5188,7 @@ export default function App() {
                             <label>UPDATE STATUS OVERRIDE</label>
                             <select className="override-select" value={selectedShipmentForSim?.status || 'Manifest Prepared'} onChange={(e) => {
                               if (selectedShipmentForSim) {
-                                fetch(`http://localhost:5000/api/shipments/${selectedShipmentForSim.id}/simulation`, {
+                                fetch(`${API_BASE}/shipments/${selectedShipmentForSim.id}/simulation`, {
                                   method: 'PUT',
                                   headers: { 'Content-Type': 'application/json' },
                                   body: JSON.stringify({ status: e.target.value })
@@ -4837,10 +5276,13 @@ export default function App() {
         }}>
           <div className="credentials-modal" style={{
             background: 'var(--card-bg, #2a2521)',
-            border: '1px solid var(--primary-color, #FFCC00)',
+            border: '1px solid var(--primary-color, #0F172A)',
             borderRadius: '12px',
             padding: '24px',
-            width: '420px',
+            width: '100%',
+            maxWidth: '420px',
+            margin: '0 16px',
+            boxSizing: 'border-box',
             boxShadow: '0 20px 40px rgba(0,0,0,0.5)',
             color: 'var(--text-primary, #ffffff)',
             animation: 'fadeInCode 0.25s ease-out'
@@ -4854,9 +5296,9 @@ export default function App() {
                 alignItems: 'center',
                 justifyContent: 'center'
               }}>
-                <i className="fas fa-key" style={{ color: '#FFCC00', fontSize: '18px' }}></i>
+                <i className="fas fa-key" style={{ color: '#0F172A', fontSize: '18px' }}></i>
               </div>
-              <h3 style={{ margin: 0, fontSize: '1.25rem', color: '#FFCC00' }}>Customer Portal Created</h3>
+              <h3 style={{ margin: 0, fontSize: '1.25rem', color: '#0F172A' }}>Customer Portal Created</h3>
             </div>
             
             <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary, #cccccc)', marginBottom: '16px', lineHeight: '1.4' }}>
@@ -4890,7 +5332,7 @@ export default function App() {
                       navigator.clipboard.writeText(credentialsModal.trackingId);
                       alert("Tracking ID copied!");
                     }} 
-                    style={{ background: 'none', border: 'none', color: '#FFCC00', cursor: 'pointer', fontSize: '0.85rem' }}
+                    style={{ background: 'none', border: 'none', color: '#0F172A', cursor: 'pointer', fontSize: '0.85rem' }}
                   >
                     Copy
                   </button>
@@ -4907,7 +5349,7 @@ export default function App() {
                       navigator.clipboard.writeText(credentialsModal.email);
                       alert("Email copied!");
                     }} 
-                    style={{ background: 'none', border: 'none', color: '#FFCC00', cursor: 'pointer', fontSize: '0.85rem' }}
+                    style={{ background: 'none', border: 'none', color: '#0F172A', cursor: 'pointer', fontSize: '0.85rem' }}
                   >
                     Copy
                   </button>
@@ -4917,27 +5359,51 @@ export default function App() {
               <div>
                 <label style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>Auto-Generated Password</label>
                 <div style={{ display: 'flex', background: 'var(--bg-secondary, #1b1613)', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '8px 12px', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontFamily: 'monospace', fontWeight: 'bold', color: '#FFCC00' }}>{credentialsModal.password}</span>
+                  <span style={{ fontFamily: 'monospace', fontWeight: 'bold', color: '#0F172A' }}>{credentialsModal.password}</span>
                   <button 
                     type="button" 
                     onClick={() => {
                       navigator.clipboard.writeText(credentialsModal.password);
                       alert("Password copied!");
                     }} 
-                    style={{ background: 'none', border: 'none', color: '#FFCC00', cursor: 'pointer', fontSize: '0.85rem' }}
+                    style={{ background: 'none', border: 'none', color: '#0F172A', cursor: 'pointer', fontSize: '0.85rem' }}
                   >
                     Copy
                   </button>
                 </div>
               </div>
             </div>
+
+            {credentialsModal.packageImage && (
+              <div style={{
+                background: 'var(--bg-secondary, #1b1613)',
+                border: '1px solid #334155',
+                borderRadius: '8px',
+                padding: '10px 12px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '12px',
+                marginBottom: '20px'
+              }}>
+                <img 
+                  src={credentialsModal.packageImage} 
+                  alt="Package intake photo" 
+                  style={{ width: '48px', height: '48px', objectFit: 'cover', borderRadius: '6px', border: '1px solid #FF6B00', cursor: 'pointer' }} 
+                  onClick={() => setPhotoPreviewModal(credentialsModal.packageImage)}
+                />
+                <div>
+                  <div style={{ fontSize: '0.82rem', fontWeight: 'bold', color: '#10B981' }}>✓ Package Photo Saved to Database</div>
+                  <div style={{ fontSize: '0.74rem', color: 'var(--text-secondary, #94a3b8)' }}>Included below credentials in customer confirmation email.</div>
+                </div>
+              </div>
+            )}
             
             <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
               <button 
                 type="button" 
                 onClick={() => setCredentialsModal(null)} 
                 style={{
-                  background: 'linear-gradient(135deg, #FFCC00 0%, #d89600 100%)',
+                  background: 'linear-gradient(135deg, #0F172A 0%, #d89600 100%)',
                   color: '#1b1613',
                   border: 'none',
                   borderRadius: '6px',
@@ -4950,6 +5416,64 @@ export default function App() {
                 CONFIRM & CLOSE
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* FULLSCREEN PHOTO PREVIEW MODAL */}
+      {photoPreviewModal && (
+        <div 
+          className="photo-preview-overlay" 
+          onClick={() => setPhotoPreviewModal(null)}
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0, 0, 0, 0.85)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 99999,
+            padding: '20px',
+            backdropFilter: 'blur(5px)'
+          }}
+        >
+          <div 
+            onClick={(e) => e.stopPropagation()} 
+            style={{
+              position: 'relative',
+              background: '#0F172A',
+              borderRadius: '12px',
+              padding: '16px',
+              maxWidth: '90vw',
+              maxHeight: '90vh',
+              border: '2px solid #FF6B00',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.7)'
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+              <span style={{ color: '#ffffff', fontWeight: 'bold', fontSize: '0.95rem' }}>📸 Verified Cargo Intake Photograph</span>
+              <button 
+                onClick={() => setPhotoPreviewModal(null)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: '#94a3b8',
+                  fontSize: '1.2rem',
+                  cursor: 'pointer',
+                  padding: '4px 8px'
+                }}
+              >
+                ✕
+              </button>
+            </div>
+            <img 
+              src={photoPreviewModal} 
+              alt="Package Intake Enlarge" 
+              style={{ maxWidth: '80vw', maxHeight: '75vh', objectFit: 'contain', borderRadius: '8px', display: 'block', margin: '0 auto' }} 
+            />
           </div>
         </div>
       )}
@@ -4984,10 +5508,13 @@ export default function App() {
             }
           }} style={{
             background: 'var(--card-bg, #2a2521)',
-            border: '1px solid var(--primary-color, #FFCC00)',
+            border: '1px solid var(--primary-color, #0F172A)',
             borderRadius: '12px',
             padding: '24px',
-            width: '400px',
+            width: '100%',
+            maxWidth: '400px',
+            margin: '0 16px',
+            boxSizing: 'border-box',
             boxShadow: '0 20px 40px rgba(0,0,0,0.5)',
             color: 'var(--text-primary, #ffffff)',
             animation: 'fadeInCode 0.25s ease-out'
@@ -5001,9 +5528,9 @@ export default function App() {
                 alignItems: 'center',
                 justifyContent: 'center'
               }}>
-                <svg viewBox="0 0 24 24" fill="none" stroke="#FFCC00" strokeWidth="2.5" style={{width: '20px', height: '20px'}}><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                <svg viewBox="0 0 24 24" fill="none" stroke="#0F172A" strokeWidth="2.5" style={{width: '20px', height: '20px'}}><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
               </div>
-              <h3 style={{ margin: 0, fontSize: '1.25rem', color: '#FFCC00' }}>Track Your Shipment</h3>
+              <h3 style={{ margin: 0, fontSize: '1.25rem', color: '#0F172A' }}>Track Your Shipment</h3>
             </div>
             
             <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary, #cccccc)', marginBottom: '20px', lineHeight: '1.4' }}>
@@ -5019,7 +5546,7 @@ export default function App() {
                   setCustomerTrackInput(e.target.value);
                   setTrackPromptError('');
                 }}
-                placeholder="e.g. DHL-31518784"
+                placeholder="e.g. TXL-31518784"
                 style={{
                   width: '100%',
                   background: 'var(--bg-secondary, #1b1613)',
@@ -5059,7 +5586,7 @@ export default function App() {
               <button 
                 type="submit" 
                 style={{
-                  background: 'linear-gradient(135deg, #FFCC00 0%, #E29E00 100%)',
+                  background: 'linear-gradient(135deg, #0F172A 0%, #E29E00 100%)',
                   color: '#1b1613',
                   border: 'none',
                   borderRadius: '6px',
@@ -5092,28 +5619,30 @@ export default function App() {
         }}>
           <div className="credentials-modal" style={{
             background: 'rgba(30, 24, 21, 0.95)',
-            border: '1px solid #FFCC00',
+            border: '1px solid #0F172A',
             borderRadius: '12px',
             padding: '24px',
-            width: '420px',
+            width: '100%',
+            maxWidth: '420px',
+            margin: '0 16px',
             color: '#fff',
             boxSizing: 'border-box',
             boxShadow: '0 8px 32px rgba(0, 0, 0, 0.5)'
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
               <div style={{
-                background: '#FFCC00',
+                background: '#0F172A',
                 borderRadius: '50%',
                 width: '32px',
                 height: '32px',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                color: '#D40511'
+                color: '#FF6B00'
               }}>
                 <Search style={{ width: '16px', height: '16px' }} />
               </div>
-              <h3 style={{ margin: 0, color: '#FFCC00', fontSize: '1.2rem', fontFamily: 'Outfit, sans-serif' }}>
+              <h3 style={{ margin: 0, color: '#0F172A', fontSize: '1.2rem', fontFamily: 'Outfit, sans-serif' }}>
                 Track Your Shipment
               </h3>
             </div>
@@ -5145,18 +5674,18 @@ export default function App() {
                   Please enter the 8-digit tracking ID reference printed on your receipt or dispatch email.
                 </p>
                 <div style={{ marginBottom: '16px' }}>
-                  <label style={{ display: 'block', fontSize: '0.75rem', color: '#FFCC00', textTransform: 'uppercase', marginBottom: '6px', fontWeight: 'bold' }}>
+                  <label style={{ display: 'block', fontSize: '0.75rem', color: '#0F172A', textTransform: 'uppercase', marginBottom: '6px', fontWeight: 'bold' }}>
                     TRACKING NUMBER
                   </label>
                   <input 
                     type="text"
-                    placeholder="DHL-00000000"
+                    placeholder="TXL-00000000"
                     value={visitorTrackInput}
                     onChange={(e) => setVisitorTrackInput(e.target.value)}
                     style={{
                       width: '100%',
                       background: 'rgba(255, 255, 255, 0.05)',
-                      border: '1px solid #FFCC00',
+                      border: '1px solid #0F172A',
                       borderRadius: '6px',
                       padding: '10px',
                       color: '#fff',
@@ -5192,7 +5721,7 @@ export default function App() {
                     type="submit" 
                     disabled={visitorTrackLoading}
                     style={{
-                      background: 'linear-gradient(135deg, #FFCC00 0%, #D40511 100%)',
+                      background: 'linear-gradient(135deg, #0F172A 0%, #FF6B00 100%)',
                       color: '#ffffff',
                       border: 'none',
                       borderRadius: '6px',
@@ -5221,7 +5750,7 @@ export default function App() {
                   fontFamily: 'monospace'
                 }}>
                   <div style={{ textAlign: 'center', borderBottom: '1px dashed rgba(255,204,0,0.3)', paddingBottom: '8px', marginBottom: '12px' }}>
-                    <span style={{ fontSize: '1rem', fontWeight: 'bold', color: '#FFCC00' }}>DHL EXPRESS CARGO RECEIPT</span>
+                    <span style={{ fontSize: '1rem', fontWeight: 'bold', color: '#0F172A' }}>TXL EXPRESS CARGO RECEIPT</span>
                   </div>
                   <div><strong>TRACKING ID:</strong> {visitorTrackResult.id}</div>
                   <div><strong>RECIPIENT:</strong> {visitorTrackResult.customerName}</div>
@@ -5230,7 +5759,7 @@ export default function App() {
                   <div><strong>VESSEL TYPE:</strong> {visitorTrackResult.vessel}</div>
                   <div style={{ height: '8px' }}></div>
                   <div style={{ borderTop: '1px dashed rgba(255,185,0,0.2)', paddingTop: '8px' }}>
-                    <strong>STATUS:</strong> <span style={{ color: '#FFCC00', fontWeight: 'bold' }}>{visitorTrackResult.status}</span>
+                    <strong>STATUS:</strong> <span style={{ color: '#0F172A', fontWeight: 'bold' }}>{visitorTrackResult.status}</span>
                   </div>
                   <div><strong>LAST LOCATION:</strong> {visitorTrackResult.currentLocationName}</div>
                   <div><strong>EST. DELIVERY:</strong> {visitorTrackResult.eta || 'Pending'}</div>
@@ -5239,7 +5768,7 @@ export default function App() {
                 {/* Promotional banner calling to login */}
                 <div style={{
                   background: 'rgba(255, 185, 0, 0.1)',
-                  borderLeft: '4px solid #FFCC00',
+                  borderLeft: '4px solid #0F172A',
                   padding: '12px',
                   borderRadius: '4px',
                   marginBottom: '20px',
@@ -5273,7 +5802,7 @@ export default function App() {
                       window.location.hash = '#login';
                     }}
                     style={{
-                      background: 'linear-gradient(135deg, #FFCC00 0%, #d89600 100%)',
+                      background: 'linear-gradient(135deg, #0F172A 0%, #d89600 100%)',
                       color: '#1b1613',
                       border: 'none',
                       borderRadius: '6px',

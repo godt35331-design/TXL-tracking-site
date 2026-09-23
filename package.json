@@ -1,7 +1,7 @@
 {
-  "name": "dhl-logistics-portal",
+  "name": "txl-logistics-portal",
   "version": "1.0.0",
-  "description": "DHL Express Logistics Portal - Shipment Tracking Web Application",
+  "description": "TXL Express Logistics Portal - Shipment Tracking Web Application",
   "scripts": {
     "build": "node build.js",
     "start": "cd backend && node src/server.js"

@@ -1,8 +1,8 @@
 {
-  "name": "dhl-logistics-portal-backend",
+  "name": "txl-logistics-portal-backend",
   "version": "1.0.0",
   "type": "module",
-  "description": "Backend API server for DHL Express Logistics Portal",
+  "description": "Backend API server for TXL Express Logistics Portal",
   "main": "src/server.js",
   "scripts": {
     "start": "node src/server.js",

@@ -1,8 +1,18 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
-  <rect width="64" height="64" rx="14" fill="#FFCC00"/>
-  <!-- DHL Speed Stripes -->
-  <line x1="8" y1="16" x2="56" y2="16" stroke="#D40511" stroke-width="2.5" stroke-linecap="round"/>
-  <line x1="8" y1="48" x2="56" y2="48" stroke="#D40511" stroke-width="2.5" stroke-linecap="round"/>
-  <!-- DHL Bold Italic Lettering -->
-  <text x="32" y="39" font-family="'Inter', 'Arial Black', sans-serif" font-weight="900" font-style="italic" font-size="22" fill="#D40511" text-anchor="middle" letter-spacing="-0.5">DHL</text>
+  <defs>
+    <linearGradient id="txlGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0F172A"/>
+      <stop offset="100%" stop-color="#1E293B"/>
+    </linearGradient>
+    <linearGradient id="accentGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#FF6B00"/>
+      <stop offset="100%" stop-color="#FFA800"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="16" fill="url(#txlGrad)"/>
+  <!-- Speed dynamic accents -->
+  <line x1="10" y1="14" x2="42" y2="14" stroke="url(#accentGrad)" stroke-width="3" stroke-linecap="round"/>
+  <line x1="22" y1="50" x2="54" y2="50" stroke="url(#accentGrad)" stroke-width="3" stroke-linecap="round"/>
+  <!-- TXL Bold Typography -->
+  <text x="32" y="39" font-family="'Inter', -apple-system, sans-serif" font-weight="900" font-style="italic" font-size="20" fill="#FFFFFF" text-anchor="middle" letter-spacing="1">TXL</text>
 </svg>

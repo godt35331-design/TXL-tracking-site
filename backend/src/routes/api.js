@@ -33,17 +33,17 @@ router.post('/auth/login', async (req, res) => {
   }
 
   const cleanEmail = email.trim().toLowerCase();
-  const configuredAdminEmail = (process.env.ADMIN_EMAIL || 'admin@dhl.com').trim().toLowerCase();
+  const configuredAdminEmail = (process.env.ADMIN_EMAIL || 'admin@txlglobaltracking.com').trim().toLowerCase();
 
   try {
-    if (cleanEmail === configuredAdminEmail || cleanEmail === 'admin@dhl.com') {
+    if (cleanEmail === configuredAdminEmail || cleanEmail === 'admin@txlglobaltracking.com' || cleanEmail === 'admin@dhl.com') {
       const adminPass = process.env.ADMIN_PASSWORD || 'admin123';
       if (password !== adminPass) {
         return res.status(401).json({ error: 'Invalid password credentials for Administrator.' });
       }
       return res.json({
         email: cleanEmail,
-        name: 'DHL System Administrator',
+        name: 'TXL System Administrator',
         role: 'admin'
       });
     }
@@ -51,7 +51,7 @@ router.post('/auth/login', async (req, res) => {
     // Lookup customer in MongoDB
     const customer = await Customer.findOne({ email: cleanEmail });
     if (customer) {
-      const customerPass = customer.password || 'dhl123';
+      const customerPass = customer.password || 'txl123';
       if (password !== customerPass) {
         return res.status(401).json({ error: 'Invalid password credentials for Customer.' });
       }
@@ -72,11 +72,11 @@ router.post('/auth/login', async (req, res) => {
 // 2. Fetch Customer Shipments / Admin Directories
 router.get('/shipments', async (req, res) => {
   const { email } = req.query;
-  const configuredAdminEmail = (process.env.ADMIN_EMAIL || 'admin@dhl.com').trim().toLowerCase();
+  const configuredAdminEmail = (process.env.ADMIN_EMAIL || 'admin@txlglobaltracking.com').trim().toLowerCase();
 
   try {
     let query = {};
-    if (email && email.trim().toLowerCase() !== configuredAdminEmail && email.trim().toLowerCase() !== 'admin@dhl.com') {
+    if (email && email.trim().toLowerCase() !== configuredAdminEmail && email.trim().toLowerCase() !== 'admin@txlglobaltracking.com' && email.trim().toLowerCase() !== 'admin@dhl.com') {
       query.customerEmail = email.trim().toLowerCase();
     }
     
@@ -100,6 +100,35 @@ router.get('/shipments/:id', async (req, res) => {
   } catch (error) {
     console.error('Error searching shipment details:', error);
     res.status(500).json({ error: 'Database search fault.' });
+  }
+});
+
+// 3b. Stream Package Photo Binary (for external email clients, Gmail proxy, and direct browser display)
+router.get('/shipments/:id/image', async (req, res) => {
+  const { id } = req.params;
+  try {
+    const shipment = await Shipment.findOne({ id: id.toUpperCase() });
+    if (!shipment || !shipment.packageImage) {
+      return res.status(404).send('No package image registered for this shipment.');
+    }
+
+    if (shipment.packageImage.startsWith('data:')) {
+      const matches = shipment.packageImage.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+      if (matches) {
+        const contentType = matches[1];
+        const buffer = Buffer.from(matches[2], 'base64');
+        res.setHeader('Content-Type', contentType);
+        res.setHeader('Cache-Control', 'public, max-age=86400');
+        return res.send(buffer);
+      }
+    } else if (shipment.packageImage.startsWith('http')) {
+      return res.redirect(shipment.packageImage);
+    }
+
+    res.status(404).send('Unrecognized image format.');
+  } catch (error) {
+    console.error('Error serving shipment package image:', error);
+    res.status(500).send('Failed to retrieve package image.');
   }
 });
 
@@ -132,6 +161,8 @@ router.post('/shipments', async (req, res) => {
       originCode: sData.originCode || 'FRA',
       destCode: sData.destCode || 'NYC',
       eta: sData.eta,
+      packageImage: sData.packageImage || '',
+      internalNotes: sData.internalNotes || '',
       status: 'Registered',
       currentLocationName: `Scheduled for departure at ${sData.origin}`,
       simulation: {
@@ -139,7 +170,7 @@ router.post('/shipments', async (req, res) => {
         currentProgress: 0,
         waypoints: sData.waypoints || ['FRA', 'LHR', 'BOS', 'NYC'],
         speedMultiplier: 1,
-        logs: 'Shipping appointment created in DHL database.'
+        logs: 'Shipping appointment created in TXL database.'
       }
     });
 
@@ -168,25 +199,43 @@ router.post('/shipments', async (req, res) => {
       { upsert: true, new: true }
     );
 
-    // Format response POJO to include credentials
+    // Format response POJO to include credentials & packageImage
     const responsePayload = typeof newShipment.toObject === 'function' ? newShipment.toObject() : JSON.parse(JSON.stringify(newShipment));
     responsePayload.credentials = {
       email: custEmail,
       password: password,
-      trackingId: newShipment.id
+      trackingId: newShipment.id,
+      packageImage: newShipment.packageImage || ''
     };
+
+    // Save outbound registration message to Message collection in DB
+    try {
+      const regMsg = new Message({
+        customerEmail: custEmail,
+        customerName: sData.customerName,
+        subject: `TXL Shipment Confirmation & Credentials - #${newShipment.id}`,
+        body: `Welcome to TXL Express Global Logistics.\n\nYour shipping appointment has been registered.\nTracking Number: #${newShipment.id}\nOrigin: ${newShipment.origin}\nDestination: ${newShipment.destination}\nStatus: Registered\n\nCustomer Portal Login:\nUsername: ${custEmail}\nPassword: ${password}`,
+        sender: 'admin',
+        channel: 'email',
+        read: true
+      });
+      await regMsg.save();
+    } catch (msgErr) {
+      console.warn('Could not save registration message to message history:', msgErr);
+    }
 
     // Automatically send registration & credentials email to customer
     try {
-      const welcomeMessage = `Your shipping appointment has been successfully registered with DHL Express Global Logistics.\n\nBelow are your Customer Portal login credentials to monitor your package live telemetry, along with your shipment overview.`;
+      const welcomeMessage = `Your shipping appointment has been successfully registered with TXL Express Global Logistics.\n\nBelow are your Customer Portal login credentials to monitor your package live telemetry, along with your shipment overview.`;
 
       sendEmail({
         to: custEmail,
         recipientName: sData.customerName,
-        subject: `DHL Shipment Confirmation & Credentials - #${newShipment.id}`,
+        subject: `TXL Shipment Confirmation & Credentials - #${newShipment.id}`,
         messageBody: welcomeMessage,
         templateType: 'NEW_REGISTRATION',
         shipment: newShipment,
+        packageImage: sData.packageImage || newShipment.packageImage || '',
         credentials: {
           email: custEmail,
           password: password
@@ -205,7 +254,7 @@ router.post('/shipments', async (req, res) => {
   }
 });
 
-// 5. Update Live Simulation Controls (Play, Pause, Stop, Waypoints, Logs, Status)
+// 5. Update Live Simulation Controls (Play, Pause, Stop, Waypoints, Logs, Status, Package Image)
 router.put('/shipments/:id/simulation', async (req, res) => {
   const { id } = req.params;
   const updates = req.body;
@@ -220,6 +269,8 @@ router.put('/shipments/:id/simulation', async (req, res) => {
     if (updates.status !== undefined) shipment.status = updates.status;
     if (updates.currentLocationName !== undefined) shipment.currentLocationName = updates.currentLocationName;
     if (updates.vessel !== undefined) shipment.vessel = updates.vessel;
+    if (updates.packageImage !== undefined) shipment.packageImage = updates.packageImage;
+    if (updates.internalNotes !== undefined) shipment.internalNotes = updates.internalNotes;
     
     if (updates.simulation) {
       if (updates.simulation.active !== undefined) shipment.simulation.active = updates.simulation.active;
@@ -330,7 +381,7 @@ router.post('/admin/send-email', async (req, res) => {
 
     const targetEmail = toEmail.trim().toLowerCase();
     const customerUser = await Customer.findOne({ email: targetEmail });
-    const customerPass = customerUser?.password || 'dhl123';
+    const customerPass = customerUser?.password || 'txl123';
 
     const result = await sendEmail({
       to: targetEmail,
@@ -403,7 +454,7 @@ router.post('/inbound-email', async (req, res) => {
     console.log('[INBOUND WEBHOOK RECEIVED]:', JSON.stringify(rawReqBody, null, 2));
 
     const payload = rawReqBody.data || rawReqBody.payload || rawReqBody;
-    const domain = process.env.PORTAL_DOMAIN || 'dhlglobaltracking.com';
+    const domain = process.env.PORTAL_DOMAIN || 'txlglobaltracking.com';
     
     // Extract Sender Email
     let rawFrom = payload.from || payload.sender || payload.envelope?.from || payload.fromEmail || payload['stripped-prefix'] || '';
@@ -536,7 +587,7 @@ router.post('/admin/messages/reply', async (req, res) => {
   }
 
   const cleanEmail = customerEmail.trim().toLowerCase();
-  const domain = process.env.PORTAL_DOMAIN || 'dhlglobaltracking.com';
+  const domain = process.env.PORTAL_DOMAIN || 'txlglobaltracking.com';
 
   try {
     const formattedSubject = subject ? (subject.startsWith('Re:') ? subject : `Re: ${subject}`) : 'Re: Customer Inquiry';
@@ -651,7 +702,7 @@ router.post('/insite-messages/send', async (req, res) => {
   try {
     const newMsg = new Message({
       customerEmail: cleanEmail,
-      customerName: customerName || (validSender === 'admin' ? 'DHL Logistics Support' : cleanEmail.split('@')[0]),
+      customerName: customerName || (validSender === 'admin' ? 'TXL Logistics Support' : cleanEmail.split('@')[0]),
       subject: 'In-Site Support Chat',
       body: body.trim(),
       sender: validSender,

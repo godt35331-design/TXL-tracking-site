@@ -1,6 +1,6 @@
-# 🚀 Deployment Guide: DHL Express Logistics Portal
+# 🚀 Deployment Guide: TXL Express Logistics Portal
 
-This guide provides step-by-step instructions for deploying the **Backend to Render** and the **Frontend to Vercel**.
+This guide provides step-by-step instructions for deploying the **Backend to Render** and the **Frontend to Cloudflare Pages**.
 
 ---
 
@@ -8,47 +8,47 @@ This guide provides step-by-step instructions for deploying the **Backend to Ren
 
 1. Go to [Render Dashboard](https://dashboard.render.com).
 2. Click **New +** &rarr; **Web Service**.
-3. Connect your GitHub repository: `https://github.com/BANGHA-JPH/dhl-shipping-express.git`.
+3. Connect your GitHub repository.
 4. Configure the Web Service settings:
-   - **Name**: `dhl-shipping-express-backend`
+   - **Name**: `txl-express-backend`
    - **Runtime**: `Node`
-   - **Root Directory**: `backend` (or leave empty if using commands below)
-   - **Build Command**: `npm install` (or `cd backend && npm install` if root directory is left empty)
-   - **Start Command**: `node src/server.js` (or `cd backend && node src/server.js` if root directory is left empty)
+   - **Root Directory**: `backend`
+   - **Build Command**: `npm install`
+   - **Start Command**: `node src/server.js`
 5. **Add Environment Variables** in Render:
-   | Key | Value |
-   | :--- | :--- |
-   | `PORT` | `5000` |
-   | `MONGODB_URI` | `mongodb+srv://<username>:<password>@cluster0.eubm0bu.mongodb.net/dhl_portal?retryWrites=true&w=majority` |
-   | `ADMIN_EMAIL` | `admin@dhl.com` |
-   | `ADMIN_PASSWORD` | `admin123` |
-   | `PORTAL_DOMAIN` | `dhlglobaltracking.com` |
-   | `FROM_EMAIL` | `DHL Express Support <support@dhlglobaltracking.com>` |
-   | `RESEND_API_KEY` | `your_resend_api_key_here` |
+   | Key | Value | Example |
+   | :--- | :--- | :--- |
+   | `PORT` | `5000` | `5000` |
+   | `MONGODB_URI` | Your MongoDB Atlas Connection String | `mongodb+srv://<user>:<pass>@cluster0.xxxxx.mongodb.net/txl_portal?retryWrites=true&w=majority` |
+   | `ADMIN_EMAIL` | `admin@txlglobaltracking.com` | `admin@txlglobaltracking.com` |
+   | `ADMIN_PASSWORD` | `admin123` | `admin123` |
+   | `PORTAL_DOMAIN` | `txlglobaltracking.com` | `txlglobaltracking.com` |
+   | `FROM_EMAIL` | `TXL Express Support <support@txlglobaltracking.com>` | `TXL Express Support <support@txlglobaltracking.com>` |
+   | `RESEND_API_KEY` | `your_resend_api_key_here` | *(optional for live emails)* |
 
 6. Click **Deploy Web Service**.
-7. Once deployed, copy your Render URL (e.g., `https://dhl-shipping-express-backend.onrender.com`).
+7. Once deployed, copy your Render URL (e.g., `https://txl-express-backend.onrender.com`).
 
 ---
 
-## 2. Deploying the Frontend (Vercel)
+## 2. Deploying the Frontend (Cloudflare Pages)
 
-1. Go to [Vercel Dashboard](https://vercel.com/dashboard).
-2. Click **Add New...** &rarr; **Project**.
-3. Import your GitHub repository: `https://github.com/BANGHA-JPH/dhl-shipping-express.git`.
+1. Go to [Cloudflare Dashboard](https://dash.cloudflare.com) &rarr; **Workers & Pages**.
+2. Click **Create application** &rarr; Select the **Pages** tab &rarr; **Connect to Git**.
+3. Select your repository.
 4. Configure Project Settings:
-   - **Framework Preset**: `Vite`
-   - **Root Directory**: Click edit and select `frontend`
+   - **Framework Preset**: `React (Vite)`
+   - **Root Directory**: `frontend`
    - **Build Command**: `npm run build`
-   - **Output Directory**: `dist`
-5. **Add Environment Variables** in Vercel:
+   - **Build Output Directory**: `dist`
+5. **Add Environment Variables** in Cloudflare Pages:
    | Key | Value | Example |
    | :--- | :--- | :--- |
-   | `VITE_API_BASE` | `<Your-Render-URL>/api` | `https://dhl-shipping-express-backend.onrender.com/api` |
-   | `VITE_WS_BASE` | `wss://<Your-Render-Hostname>` | `wss://dhl-shipping-express-backend.onrender.com` |
+   | `VITE_API_BASE` | `<Your-Render-URL>/api` | `https://txl-express-backend.onrender.com/api` |
+   | `VITE_WS_BASE` | `wss://<Your-Render-Hostname>` | `wss://txl-express-backend.onrender.com` |
 
-6. Click **Deploy**.
-7. Your frontend will be live on Vercel with full SPA routing, instant live updates, and API connectivity!
+6. Click **Save and Deploy**.
+7. Your frontend will be live on Cloudflare Pages with zero security flags and lightning fast edge loading!
 
 ---
 
@@ -57,6 +57,6 @@ This guide provides step-by-step instructions for deploying the **Backend to Ren
 1. **MongoDB Atlas IP Whitelist**:
    - In MongoDB Atlas &rarr; **Network Access**, ensure `0.0.0.0/0` is whitelisted so Render can connect.
 2. **Custom Domain**:
-   - In Vercel &rarr; Settings &rarr; Domains, connect your custom domain `dhlglobaltracking.com`.
+   - In Cloudflare Pages &rarr; **Custom domains**, connect your new TXL domain.
 3. **Resend Inbound Webhook**:
    - In Resend &rarr; Webhooks, point to `https://<Your-Render-URL>/api/inbound-email` for real-time customer reply tracking.

@@ -3,15 +3,15 @@ import { Customer, Shipment } from './models.js';
 import { connectDatabase } from './connection.js';
 
 const SEED_CUSTOMERS = [
-  { name: "John Doe", email: "customer@dhl.com", volume: 2 },
+  { name: "John Doe", email: "customer@txlglobaltracking.com", volume: 2 },
   { name: "Jane Smith", email: "jane.smith@corporation.com", volume: 1 }
 ];
 
 const SEED_SHIPMENTS = [
   {
-    id: "DHL-78361092",
+    id: "TXL-78361092",
     customerName: "John Doe",
-    customerEmail: "customer@dhl.com",
+    customerEmail: "customer@txlglobaltracking.com",
     customerPhone: "+1 555 0199",
     address: "1024 Airport Way, Seattle, WA",
     weight: 820,
@@ -34,9 +34,9 @@ const SEED_SHIPMENTS = [
     }
   },
   {
-    id: "DHL-10492837",
+    id: "TXL-10492837",
     customerName: "John Doe",
-    customerEmail: "customer@dhl.com",
+    customerEmail: "customer@txlglobaltracking.com",
     customerPhone: "+1 555 0199",
     address: "300 Tech Center Blvd, Los Angeles, CA",
     weight: 12450,
@@ -48,7 +48,7 @@ const SEED_SHIPMENTS = [
     destCode: "LA",
     eta: "2026-07-25",
     status: "Warehouse",
-    currentLocationName: "Processing at DHL Regional Hub Frankfurt/NY",
+    currentLocationName: "Processing at TXL Regional Hub Frankfurt/NY",
     simulation: {
       active: false,
       currentProgress: 25,
@@ -59,7 +59,7 @@ const SEED_SHIPMENTS = [
     }
   },
   {
-    id: "DHL-99238472",
+    id: "TXL-99238472",
     customerName: "Jane Smith",
     customerEmail: "jane.smith@corporation.com",
     customerPhone: "+1 555 0341",
@@ -80,7 +80,32 @@ const SEED_SHIPMENTS = [
       waypoints: ["MIA", "ATL", "PHX", "SF"],
       speedMultiplier: 1,
       status: "Delivered",
-      logs: "Signature received. Delivered by DHL Express courier."
+      logs: "Signature received. Delivered by TXL Express courier."
+    }
+  },
+  {
+    id: "TXL-44821903",
+    customerName: "John Doe",
+    customerEmail: "customer@txlglobaltracking.com",
+    customerPhone: "+44 20 7946 0912",
+    address: "24 Princess St, Edinburgh, Scotland, UK",
+    weight: 340,
+    desc: "Critical Aerospace Components & Microelectronics",
+    vessel: "Truck",
+    origin: "London Heathrow Superhub, UK",
+    destination: "Edinburgh Turnhouse Hub, UK",
+    originCode: "LHR",
+    destCode: "EDI",
+    eta: "2026-08-04",
+    status: "In Transit",
+    currentLocationName: "In Transit near East Midlands Superhub",
+    simulation: {
+      active: true,
+      currentProgress: 55,
+      waypoints: ["LHR", "EMA", "MAN", "EDI"],
+      speedMultiplier: 1.5,
+      status: "In Transit",
+      logs: "Passed Manchester Northwest Hub; proceeding north toward Scotland."
     }
   }
 ];
@@ -100,7 +125,7 @@ async function runSeeder() {
     console.log('Seeding Shipments...');
     await Shipment.insertMany(SEED_SHIPMENTS);
     
-    console.log('Database successfully seeded with DHL test data!');
+    console.log('Database successfully seeded with TXL test data!');
   } catch (error) {
     console.error('Seeding encountered an error:', error);
   } finally {

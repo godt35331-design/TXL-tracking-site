@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: dhl-shipping-express-backend
+    name: txl-express-backend
     rootDir: backend
     buildCommand: npm install
     startCommand: node src/server.js
@@ -10,12 +10,12 @@ services:
       - key: MONGODB_URI
         sync: false
       - key: ADMIN_EMAIL
-        value: admin@dhl.com
+        value: admin@txlglobaltracking.com
       - key: ADMIN_PASSWORD
         value: admin123
       - key: PORTAL_DOMAIN
-        value: dhlglobaltracking.com
+        value: txlglobaltracking.com
       - key: FROM_EMAIL
-        value: DHL Express Support <support@dhlglobaltracking.com>
+        value: TXL Express Support <support@txlglobaltracking.com>
       - key: RESEND_API_KEY
         sync: false

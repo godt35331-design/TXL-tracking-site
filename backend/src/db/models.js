@@ -23,6 +23,8 @@ const shipmentSchema = new mongoose.Schema({
   originCode: { type: String, default: 'CHI' },
   destCode: { type: String, default: 'SEA' },
   eta: { type: String, required: true },
+  packageImage: { type: String, default: '' },
+  internalNotes: { type: String, default: '' },
   status: { type: String, default: 'Registered' },
   currentLocationName: { type: String, default: 'Scheduled' },
   simulation: {

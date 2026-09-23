@@ -19,15 +19,15 @@ app.use(cors({
   credentials: true
 }));
 
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 // Main REST API Router
 app.use('/api', apiRouter);
 
 // Basic health check
 app.get('/', (req, res) => {
-  res.json({ message: 'DHL Express Logistics Portal Server running successfully.' });
+  res.json({ message: 'TXL Express Logistics Portal Server running successfully.' });
 });
 
 // Construct HTTP Server
@@ -74,7 +74,7 @@ async function initializeServer() {
 
   server.listen(PORT, () => {
     console.log(`===============================================`);
-    console.log(`DHL Express Logistics Portal Backend running at port ${PORT}`);
+    console.log(`TXL Express Logistics Portal Backend running at port ${PORT}`);
     console.log(`WebSocket server connected at ws://localhost:${PORT}`);
     console.log(`REST APIs available at http://localhost:${PORT}/api`);
     console.log(`===============================================`);
