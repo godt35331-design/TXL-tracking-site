@@ -1,6 +1,7 @@
 import express from 'express';
 import { Customer, Shipment, Message } from '../db/models.js';
 import { sendEmail } from '../services/emailService.js';
+import { advanceShipmentSimulation } from '../services/simulationEngine.js';
 
 const router = express.Router();
 
@@ -10,7 +11,7 @@ export function setWssInstance(wss) {
   wssInstance = wss;
 }
 
-function broadcastShipmentUpdate(shipment) {
+export function broadcastShipmentUpdate(shipment) {
   if (!wssInstance) return;
   const message = JSON.stringify({
     type: 'SHIPMENT_UPDATE',
@@ -81,6 +82,13 @@ router.get('/shipments', async (req, res) => {
     }
     
     const shipments = await Shipment.find(query).sort({ createdAt: -1 });
+    // Autonomously advance any active real-time schedule simulations
+    for (const s of shipments) {
+      if (s.simulation && s.simulation.active && s.simulation.mode === 'realtime') {
+        const changed = advanceShipmentSimulation(s);
+        if (changed) await s.save();
+      }
+    }
     res.json(shipments);
   } catch (error) {
     console.error('Error retrieving shipments:', error);
@@ -95,6 +103,11 @@ router.get('/shipments/:id', async (req, res) => {
     const shipment = await Shipment.findOne({ id: id.toUpperCase() });
     if (!shipment) {
       return res.status(404).json({ error: 'Shipment ID not registered.' });
+    }
+    // Autonomously advance simulation if real-time active
+    if (shipment.simulation && shipment.simulation.active && shipment.simulation.mode === 'realtime') {
+      const changed = advanceShipmentSimulation(shipment);
+      if (changed) await shipment.save();
     }
     res.json(shipment);
   } catch (error) {
@@ -271,13 +284,28 @@ router.put('/shipments/:id/simulation', async (req, res) => {
     if (updates.vessel !== undefined) shipment.vessel = updates.vessel;
     if (updates.packageImage !== undefined) shipment.packageImage = updates.packageImage;
     if (updates.internalNotes !== undefined) shipment.internalNotes = updates.internalNotes;
+    if (updates.eta !== undefined) shipment.eta = updates.eta;
     
     if (updates.simulation) {
       if (updates.simulation.active !== undefined) shipment.simulation.active = updates.simulation.active;
+      if (updates.simulation.mode !== undefined) shipment.simulation.mode = updates.simulation.mode;
+      if (updates.simulation.durationDays !== undefined) shipment.simulation.durationDays = updates.simulation.durationDays;
+      if (updates.simulation.startedAt !== undefined) shipment.simulation.startedAt = updates.simulation.startedAt;
+      if (updates.simulation.targetCompletionDate !== undefined) shipment.simulation.targetCompletionDate = updates.simulation.targetCompletionDate;
+      if (updates.simulation.startProgress !== undefined) shipment.simulation.startProgress = updates.simulation.startProgress;
       if (updates.simulation.currentProgress !== undefined) shipment.simulation.currentProgress = updates.simulation.currentProgress;
       if (updates.simulation.waypoints !== undefined) shipment.simulation.waypoints = updates.simulation.waypoints;
       if (updates.simulation.speedMultiplier !== undefined) shipment.simulation.speedMultiplier = updates.simulation.speedMultiplier;
       if (updates.simulation.logs !== undefined) shipment.simulation.logs = updates.simulation.logs;
+
+      // If initiating or un-pausing realtime schedule mode
+      if (shipment.simulation.active && shipment.simulation.mode === 'realtime') {
+        if (!updates.simulation.startedAt && !shipment.simulation.startedAt) {
+          shipment.simulation.startedAt = new Date().toISOString();
+          shipment.simulation.startProgress = shipment.simulation.currentProgress || 0;
+        }
+        advanceShipmentSimulation(shipment);
+      }
     }
 
     await shipment.save();

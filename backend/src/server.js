@@ -4,7 +4,8 @@ import http from 'http';
 import { WebSocketServer } from 'ws';
 import cors from 'cors';
 import { connectDatabase } from './db/connection.js';
-import apiRouter, { setWssInstance } from './routes/api.js';
+import apiRouter, { setWssInstance, broadcastShipmentUpdate } from './routes/api.js';
+import { startSimulationEngine } from './services/simulationEngine.js';
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -59,6 +60,9 @@ wss.on('connection', (ws) => {
 // Initialize Database connection then launch Listening Server
 async function initializeServer() {
   await connectDatabase();
+  
+  // Launch autonomous 24/7 background simulation engine
+  startSimulationEngine(broadcastShipmentUpdate);
   
   server.on('error', (e) => {
     if (e.code === 'EADDRINUSE') {

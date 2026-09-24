@@ -2110,6 +2110,20 @@ export default function App() {
   const [simActiveShipmentId, setSimActiveShipmentId] = useState('');
   const [simSpeed, setSimSpeed] = useState(2);
   const [isSimRunning, setIsSimRunning] = useState(false);
+  const [simMode, setSimMode] = useState('realtime'); // 'realtime' (autonomous 24/7 background schedule) or 'manual' (speed slider demo)
+  const [simDurationDays, setSimDurationDays] = useState(7); // default 7 days = 1 week
+  const [simCustomVal, setSimCustomVal] = useState('7');
+  const [simCustomUnit, setSimCustomUnit] = useState('days'); // 'days' or 'hours'
+  const [simAutoSyncEta, setSimAutoSyncEta] = useState(true);
+  const [liveClockTick, setLiveClockTick] = useState(0);
+
+  // 1-second live clock ticker to keep remaining time countdown ticking smoothly
+  useEffect(() => {
+    const clockInterval = setInterval(() => {
+      setLiveClockTick(t => t + 1);
+    }, 1000);
+    return () => clearInterval(clockInterval);
+  }, []);
 
   const shipmentsRef = useRef(shipments);
   useEffect(() => {
@@ -2674,49 +2688,152 @@ export default function App() {
     }
   };
 
-  const handleStartSim = () => {
+  const handleStartSim = async () => {
     if (!simActiveShipmentId) return;
-    if (simIntervalRef.current) clearInterval(simIntervalRef.current);
+    const shipment = shipmentsRef.current.find(s => s.id === simActiveShipmentId);
+    if (!shipment) return;
 
-    fetch(`${API_BASE}/shipments/${simActiveShipmentId}/simulation`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
+    if (simIntervalRef.current) {
+      clearInterval(simIntervalRef.current);
+      simIntervalRef.current = null;
+    }
+
+    if (simMode === 'realtime') {
+      // 24/7 Autonomous background simulation over calendar days
+      const days = parseFloat(simDurationDays) || 7;
+      const now = new Date();
+      const currentProg = (shipment.simulation && typeof shipment.simulation.currentProgress === 'number')
+        ? (shipment.simulation.currentProgress >= 100 ? 0 : shipment.simulation.currentProgress)
+        : 0;
+
+      const targetMs = now.getTime() + (days * 24 * 60 * 60 * 1000);
+      const targetDate = new Date(targetMs);
+      const yyyy = targetDate.getFullYear();
+      const mm = String(targetDate.getMonth() + 1).padStart(2, '0');
+      const dd = String(targetDate.getDate()).padStart(2, '0');
+      const formattedEta = `${yyyy}-${mm}-${dd}`;
+
+      const payload = {
         simulation: {
           active: true,
-          speedMultiplier: simSpeedRef.current
+          mode: 'realtime',
+          durationDays: days,
+          startedAt: now.toISOString(),
+          targetCompletionDate: targetDate.toISOString(),
+          startProgress: currentProg,
+          currentProgress: currentProg,
+          speedMultiplier: 1,
+          logs: `Autonomous 24/7 transit simulation initiated (${days} day schedule). System will advance progress even when logged out.`
         }
-      })
-    });
+      };
 
-    const interval = setInterval(() => {
-      updateSimTelemetry(simActiveShipmentId, simSpeedRef.current, null);
-    }, 1500);
+      if (simAutoSyncEta) {
+        payload.eta = formattedEta;
+      }
 
-    simIntervalRef.current = interval;
-    setIsSimRunning(true);
+      try {
+        const res = await fetch(`${API_BASE}/shipments/${simActiveShipmentId}/simulation`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        if (res.ok) {
+          const updated = await res.json();
+          setShipments(prev => prev.map(s => s.id === updated.id ? updated : s));
+          setIsSimRunning(true);
+        }
+      } catch (err) {
+        console.error('Failed to start realtime simulation:', err);
+      }
+    } else {
+      // Manual interactive fast demo loop
+      fetch(`${API_BASE}/shipments/${simActiveShipmentId}/simulation`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          simulation: {
+            active: true,
+            mode: 'manual',
+            speedMultiplier: simSpeedRef.current
+          }
+        })
+      });
+
+      const interval = setInterval(() => {
+        updateSimTelemetry(simActiveShipmentId, simSpeedRef.current, null);
+      }, 1500);
+
+      simIntervalRef.current = interval;
+      setIsSimRunning(true);
+    }
   };
 
-  const handlePauseSim = () => {
+  const handlePauseSim = async () => {
     if (simIntervalRef.current) {
       clearInterval(simIntervalRef.current);
       simIntervalRef.current = null;
     }
     setIsSimRunning(false);
-    
-    if (simActiveShipmentId) {
-      fetch(`${API_BASE}/shipments/${simActiveShipmentId}/simulation`, {
+
+    if (!simActiveShipmentId) return;
+    const shipment = shipmentsRef.current.find(s => s.id === simActiveShipmentId);
+    const currProg = shipment?.simulation?.currentProgress || 0;
+
+    try {
+      const res = await fetch(`${API_BASE}/shipments/${simActiveShipmentId}/simulation`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ simulation: { active: false } })
+        body: JSON.stringify({
+          simulation: {
+            active: false,
+            startProgress: currProg,
+            logs: `Simulation paused at ${currProg.toFixed(1)}% progress.`
+          }
+        })
       });
+      if (res.ok) {
+        const updated = await res.json();
+        setShipments(prev => prev.map(s => s.id === updated.id ? updated : s));
+      }
+    } catch (e) {
+      console.error('Pause simulation error:', e);
     }
   };
 
-  const handleStopSim = () => {
-    handlePauseSim();
-    if (simActiveShipmentId) {
-      updateSimTelemetry(simActiveShipmentId, -200, 'Simulator reset. Grounded in departure port.');
+  const handleStopSim = async () => {
+    if (simIntervalRef.current) {
+      clearInterval(simIntervalRef.current);
+      simIntervalRef.current = null;
+    }
+    setIsSimRunning(false);
+
+    if (!simActiveShipmentId) return;
+    const shipment = shipmentsRef.current.find(s => s.id === simActiveShipmentId);
+    if (!shipment) return;
+
+    try {
+      const res = await fetch(`${API_BASE}/shipments/${simActiveShipmentId}/simulation`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          status: 'Registered',
+          currentLocationName: `Scheduled for departure at ${shipment.origin}`,
+          simulation: {
+            active: false,
+            currentProgress: 0,
+            startProgress: 0,
+            startedAt: null,
+            targetCompletionDate: null,
+            logs: 'Simulation reset to origin. Departure grounded.'
+          }
+        })
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        setShipments(prev => prev.map(s => s.id === updated.id ? updated : s));
+      }
+    } catch (e) {
+      console.error('Reset simulation error:', e);
     }
   };
 
@@ -2730,16 +2847,24 @@ export default function App() {
 
     if (simActiveShipmentId) {
       const activeShip = shipmentsRef.current.find(s => s.id === simActiveShipmentId);
-      if (activeShip && activeShip.simulation && activeShip.simulation.active) {
-        const speed = activeShip.simulation.speedMultiplier || 2;
-        setSimSpeed(speed);
-
-        const interval = setInterval(() => {
-          updateSimTelemetry(simActiveShipmentId, simSpeedRef.current, null);
-        }, 1500);
-
-        simIntervalRef.current = interval;
-        setIsSimRunning(true);
+      if (activeShip && activeShip.simulation) {
+        if (activeShip.simulation.mode) {
+          setSimMode(activeShip.simulation.mode);
+        }
+        if (activeShip.simulation.durationDays) {
+          setSimDurationDays(activeShip.simulation.durationDays);
+        }
+        if (activeShip.simulation.active) {
+          setIsSimRunning(true);
+          if (activeShip.simulation.mode === 'manual') {
+            const speed = activeShip.simulation.speedMultiplier || 2;
+            setSimSpeed(speed);
+            const interval = setInterval(() => {
+              updateSimTelemetry(simActiveShipmentId, simSpeedRef.current, null);
+            }, 1500);
+            simIntervalRef.current = interval;
+          }
+        }
       }
     }
 
@@ -2748,7 +2873,6 @@ export default function App() {
         clearInterval(simIntervalRef.current);
         simIntervalRef.current = null;
       }
-      setIsSimRunning(false);
     };
   }, [simActiveShipmentId]);
 
@@ -4429,13 +4553,70 @@ export default function App() {
             }
             
             let selectedShipmentSimEtaString = '0h 0m';
+            let selectedShipmentRemainingTimeStr = 'Ready to launch';
+            let selectedShipmentTargetArrivalStr = '--';
+            let selectedShipmentStartedAtStr = '--';
+            let selectedShipmentDurationStr = `${simDurationDays} Days`;
+
             if (selectedShipmentForSim) {
-              const remainingFraction = (100 - selectedShipmentSimProg) / 100;
-              const totalMinutesSim = selectedShipmentSimVessel === 'Plane' ? 180 : selectedShipmentSimVessel === 'Ship' ? 1440 : 480;
-              const remainingMinutes = Math.max(0, Math.round(totalMinutesSim * remainingFraction));
-              const hours = Math.floor(remainingMinutes / 60);
-              const mins = remainingMinutes % 60;
-              selectedShipmentSimEtaString = `${hours}h ${mins}m`;
+              const isRealtime = selectedShipmentForSim.simulation?.mode === 'realtime';
+              const durationDaysVal = selectedShipmentForSim.simulation?.durationDays || simDurationDays || 7;
+              selectedShipmentDurationStr = durationDaysVal === 1 ? '1 Day (24h)' : durationDaysVal === 7 ? '7 Days (1 Week)' : durationDaysVal === 14 ? '14 Days (2 Weeks)' : `${durationDaysVal} Days`;
+
+              if (selectedShipmentForSim.simulation?.startedAt) {
+                try {
+                  const sDate = new Date(selectedShipmentForSim.simulation.startedAt);
+                  selectedShipmentStartedAtStr = sDate.toLocaleDateString('en-US', {
+                    month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
+                  });
+                } catch {
+                  selectedShipmentStartedAtStr = selectedShipmentForSim.simulation.startedAt;
+                }
+              }
+
+              if (isRealtime && selectedShipmentForSim.simulation?.targetCompletionDate) {
+                const targetMs = new Date(selectedShipmentForSim.simulation.targetCompletionDate).getTime();
+                const nowMs = Date.now();
+                const remainingMs = Math.max(0, targetMs - nowMs);
+
+                const totalRemSec = Math.floor(remainingMs / 1000);
+                const remDays = Math.floor(totalRemSec / 86400);
+                const remHours = Math.floor((totalRemSec % 86400) / 3600);
+                const remMins = Math.floor((totalRemSec % 3600) / 60);
+                const remSecs = totalRemSec % 60;
+
+                try {
+                  const tDate = new Date(targetMs);
+                  selectedShipmentTargetArrivalStr = tDate.toLocaleDateString('en-US', {
+                    weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
+                  });
+                } catch {
+                  selectedShipmentTargetArrivalStr = selectedShipmentForSim.eta;
+                }
+
+                if (selectedShipmentSimProg >= 100 || remainingMs <= 0) {
+                  selectedShipmentRemainingTimeStr = 'Arrived at Destination';
+                  selectedShipmentSimEtaString = 'Delivered';
+                } else if (remDays > 0) {
+                  selectedShipmentRemainingTimeStr = `${remDays}d ${remHours}h ${remMins}m remaining`;
+                  selectedShipmentSimEtaString = `${remDays}d ${remHours}h`;
+                } else if (remHours > 0) {
+                  selectedShipmentRemainingTimeStr = `${remHours}h ${remMins}m ${remSecs}s remaining`;
+                  selectedShipmentSimEtaString = `${remHours}h ${remMins}m`;
+                } else {
+                  selectedShipmentRemainingTimeStr = `${remMins}m ${remSecs}s remaining`;
+                  selectedShipmentSimEtaString = `${remMins}m`;
+                }
+              } else {
+                const remainingFraction = (100 - selectedShipmentSimProg) / 100;
+                const totalMinutesSim = selectedShipmentSimVessel === 'Plane' ? 180 : selectedShipmentSimVessel === 'Ship' ? 1440 : 480;
+                const remainingMinutes = Math.max(0, Math.round(totalMinutesSim * remainingFraction));
+                const hours = Math.floor(remainingMinutes / 60);
+                const mins = remainingMinutes % 60;
+                selectedShipmentSimEtaString = `${hours}h ${mins}m`;
+                selectedShipmentRemainingTimeStr = `${hours}h ${mins}m (demo)`;
+                selectedShipmentTargetArrivalStr = selectedShipmentForSim.eta || 'Standard Dispatch';
+              }
             }
             
             return (
@@ -5086,7 +5267,7 @@ export default function App() {
                         )}
 
                         <div className="controller-section mt-15">
-                          <span className="section-label">SIMULATION MODE</span>
+                          <span className="section-label">TRANSIT VESSEL</span>
                           <div className="simulation-mode-icons-row">
                             <button 
                               type="button" 
@@ -5115,19 +5296,235 @@ export default function App() {
                           </div>
                         </div>
 
+                        {/* Simulation Engine Mode: Scheduled Real-Time vs Manual Demo */}
                         <div className="controller-section mt-15">
-                          <div className="slider-header-flex">
-                            <span className="section-label">SIMULATION SPEED</span>
-                            <span className="speed-val-badge">x{simSpeed}.0</span>
+                          <span className="section-label">SIMULATION ENGINE MODE</span>
+                          <div className="sim-mode-toggle-group">
+                            <button
+                              type="button"
+                              className={`sim-mode-tab-btn ${simMode === 'realtime' ? 'active' : ''}`}
+                              onClick={() => setSimMode('realtime')}
+                            >
+                              <Clock style={{ width: '14px', height: '14px' }} />
+                              <span>Scheduled (24/7)</span>
+                            </button>
+                            <button
+                              type="button"
+                              className={`sim-mode-tab-btn ${simMode === 'manual' ? 'active' : ''}`}
+                              onClick={() => setSimMode('manual')}
+                            >
+                              <Zap style={{ width: '14px', height: '14px' }} />
+                              <span>Manual Demo</span>
+                            </button>
                           </div>
-                          <input 
-                            type="range" 
-                            className="sim-speed-range-slider"
-                            min="1" 
-                            max="10" 
-                            value={simSpeed}
-                            onChange={(e) => handleUpdateSimSpeed(parseInt(e.target.value))}
-                          />
+
+                          {simMode === 'realtime' ? (
+                            <>
+                              <div className="sim-schedule-banner">
+                                <Clock style={{ width: '18px', height: '18px' }} />
+                                <p>
+                                  <strong>24/7 Autonomous Engine:</strong> The simulation progresses automatically in real time across your selected days even when you close the website.
+                                </p>
+                              </div>
+
+                              <div className="control-group">
+                                <label>CHOOSE DURATION BEFORE REACHING DESTINATION</label>
+                                <div className="sim-duration-grid">
+                                  <button
+                                    type="button"
+                                    className={`sim-duration-btn ${simDurationDays === 1 ? 'active' : ''}`}
+                                    onClick={() => { setSimDurationDays(1); setSimCustomVal('1'); setSimCustomUnit('days'); }}
+                                  >
+                                    <span className="dur-title">1 Day</span>
+                                    <span className="dur-sub">24 Hours</span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className={`sim-duration-btn ${simDurationDays === 2 ? 'active' : ''}`}
+                                    onClick={() => { setSimDurationDays(2); setSimCustomVal('2'); setSimCustomUnit('days'); }}
+                                  >
+                                    <span className="dur-title">2 Days</span>
+                                    <span className="dur-sub">48 Hours</span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className={`sim-duration-btn ${simDurationDays === 3 ? 'active' : ''}`}
+                                    onClick={() => { setSimDurationDays(3); setSimCustomVal('3'); setSimCustomUnit('days'); }}
+                                  >
+                                    <span className="dur-title">3 Days</span>
+                                    <span className="dur-sub">72 Hours</span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className={`sim-duration-btn ${simDurationDays === 5 ? 'active' : ''}`}
+                                    onClick={() => { setSimDurationDays(5); setSimCustomVal('5'); setSimCustomUnit('days'); }}
+                                  >
+                                    <span className="dur-title">5 Days</span>
+                                    <span className="dur-sub">120 Hours</span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className={`sim-duration-btn ${simDurationDays === 7 ? 'active' : ''}`}
+                                    onClick={() => { setSimDurationDays(7); setSimCustomVal('7'); setSimCustomUnit('days'); }}
+                                  >
+                                    <span className="dur-title">★ 1 Week</span>
+                                    <span className="dur-sub">7 Days</span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className={`sim-duration-btn ${simDurationDays === 10 ? 'active' : ''}`}
+                                    onClick={() => { setSimDurationDays(10); setSimCustomVal('10'); setSimCustomUnit('days'); }}
+                                  >
+                                    <span className="dur-title">10 Days</span>
+                                    <span className="dur-sub">240 Hours</span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className={`sim-duration-btn ${simDurationDays === 14 ? 'active' : ''}`}
+                                    onClick={() => { setSimDurationDays(14); setSimCustomVal('14'); setSimCustomUnit('days'); }}
+                                  >
+                                    <span className="dur-title">2 Weeks</span>
+                                    <span className="dur-sub">14 Days</span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className={`sim-duration-btn ${simDurationDays === 30 ? 'active' : ''}`}
+                                    onClick={() => { setSimDurationDays(30); setSimCustomVal('30'); setSimCustomUnit('days'); }}
+                                  >
+                                    <span className="dur-title">1 Month</span>
+                                    <span className="dur-sub">30 Days</span>
+                                  </button>
+                                </div>
+
+                                {/* Quick verification presets for testing */}
+                                <div className="sim-quick-tests-row">
+                                  <span className="sim-quick-label">⚡ Fast Test:</span>
+                                  <button
+                                    type="button"
+                                    className={`sim-quick-pill ${Math.abs(simDurationDays - (10 / 1440)) < 0.001 ? 'active' : ''}`}
+                                    onClick={() => { setSimDurationDays(10 / 1440); setSimCustomVal('10'); setSimCustomUnit('hours'); }}
+                                    title="Complete route in 10 minutes (Test Mode)"
+                                  >
+                                    10 Mins
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className={`sim-quick-pill ${Math.abs(simDurationDays - (30 / 1440)) < 0.001 ? 'active' : ''}`}
+                                    onClick={() => { setSimDurationDays(30 / 1440); setSimCustomVal('30'); setSimCustomUnit('hours'); }}
+                                    title="Complete route in 30 minutes (Test Mode)"
+                                  >
+                                    30 Mins
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className={`sim-quick-pill ${Math.abs(simDurationDays - (1 / 24)) < 0.001 ? 'active' : ''}`}
+                                    onClick={() => { setSimDurationDays(1 / 24); setSimCustomVal('1'); setSimCustomUnit('hours'); }}
+                                    title="Complete route in 1 hour (Test Mode)"
+                                  >
+                                    1 Hour
+                                  </button>
+                                </div>
+
+                                {/* Custom Days / Hours Input */}
+                                <div className="sim-custom-input-box">
+                                  <label>Custom Duration:</label>
+                                  <div className="sim-custom-inputs-flex">
+                                    <input
+                                      type="number"
+                                      min="0.1"
+                                      step="0.5"
+                                      className="sim-custom-number-input"
+                                      value={simCustomVal}
+                                      onChange={(e) => {
+                                        const val = e.target.value;
+                                        setSimCustomVal(val);
+                                        const num = parseFloat(val);
+                                        if (num > 0) {
+                                          setSimDurationDays(simCustomUnit === 'hours' ? num / 24 : num);
+                                        }
+                                      }}
+                                    />
+                                    <select
+                                      className="sim-custom-unit-select"
+                                      value={simCustomUnit}
+                                      onChange={(e) => {
+                                        const unit = e.target.value;
+                                        setSimCustomUnit(unit);
+                                        const num = parseFloat(simCustomVal);
+                                        if (num > 0) {
+                                          setSimDurationDays(unit === 'hours' ? num / 24 : num);
+                                        }
+                                      }}
+                                    >
+                                      <option value="days">Days</option>
+                                      <option value="hours">Hours</option>
+                                    </select>
+                                  </div>
+                                </div>
+
+                                {/* Auto-sync ETA checkbox */}
+                                <label className="sim-eta-sync-row">
+                                  <input
+                                    type="checkbox"
+                                    checked={simAutoSyncEta}
+                                    onChange={(e) => setSimAutoSyncEta(e.target.checked)}
+                                  />
+                                  <span>Automatically sync shipment ETA with target completion date</span>
+                                </label>
+
+                                {/* Scheduled Telemetry Summary Card */}
+                                <div className="sim-schedule-summary-card">
+                                  <div className="sim-summary-status-header">
+                                    <span className="sim-item-lbl">AUTONOMOUS TELEMETRY</span>
+                                    {isSimRunning ? (
+                                      <span className="sim-status-chip running">
+                                        <span className="pulse-dot"></span> 24/7 ACTIVE
+                                      </span>
+                                    ) : selectedShipmentSimProg > 0 ? (
+                                      <span className="sim-status-chip paused">
+                                        PAUSED ({selectedShipmentSimProg.toFixed(1)}%)
+                                      </span>
+                                    ) : (
+                                      <span className="sim-status-chip idle">STANDBY</span>
+                                    )}
+                                  </div>
+                                  <div className="sim-summary-grid">
+                                    <div className="sim-summary-item">
+                                      <span className="sim-item-lbl">DURATION</span>
+                                      <span className="sim-item-val highlight-gold">{selectedShipmentDurationStr}</span>
+                                    </div>
+                                    <div className="sim-summary-item">
+                                      <span className="sim-item-lbl">TIME REMAINING</span>
+                                      <span className="sim-item-val highlight-green">{selectedShipmentRemainingTimeStr}</span>
+                                    </div>
+                                    <div className="sim-summary-item">
+                                      <span className="sim-item-lbl">STARTED AT</span>
+                                      <span className="sim-item-val">{selectedShipmentStartedAtStr}</span>
+                                    </div>
+                                    <div className="sim-summary-item">
+                                      <span className="sim-item-lbl">ESTIMATED ARRIVAL (ETA)</span>
+                                      <span className="sim-item-val">{selectedShipmentTargetArrivalStr}</span>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            </>
+                          ) : (
+                            <div className="controller-section mt-10">
+                              <div className="slider-header-flex">
+                                <span className="section-label">DEMO MULTIPLIER</span>
+                                <span className="speed-val-badge">x{simSpeed}.0</span>
+                              </div>
+                              <input 
+                                type="range" 
+                                className="sim-speed-range-slider"
+                                min="1" 
+                                max="10" 
+                                value={simSpeed}
+                                onChange={(e) => handleUpdateSimSpeed(parseInt(e.target.value))}
+                              />
+                            </div>
+                          )}
                         </div>
 
                         <div className="controller-section mt-15">
@@ -5140,7 +5537,7 @@ export default function App() {
                               onClick={handleStartSim}
                             >
                               <svg viewBox="0 0 24 24" fill="currentColor" style={{width: '12px', height: '12px'}}><polygon points="5 3 19 12 5 21 5 3"/></svg>
-                              <span>START</span>
+                              <span>{isSimRunning ? 'RUNNING' : simMode === 'realtime' ? 'START TRANSIT' : 'START DEMO'}</span>
                             </button>
                             
                             <button 

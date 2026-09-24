@@ -29,10 +29,16 @@ const shipmentSchema = new mongoose.Schema({
   currentLocationName: { type: String, default: 'Scheduled' },
   simulation: {
     active: { type: Boolean, default: false },
+    mode: { type: String, default: 'realtime' },
+    durationDays: { type: Number, default: 7 },
+    startedAt: { type: String, default: null },
+    targetCompletionDate: { type: String, default: null },
+    startProgress: { type: Number, default: 0 },
     currentProgress: { type: Number, default: 0 },
     waypoints: { type: [String], default: ['CHI', 'KC', 'DEN', 'SEA'] },
     speedMultiplier: { type: Number, default: 1 },
-    logs: { type: String, default: 'Shipment registered in portal.' }
+    logs: { type: String, default: 'Shipment registered in portal.' },
+    lastUpdated: { type: String, default: null }
   }
 }, { timestamps: true });
 
@@ -333,10 +339,16 @@ class MockShipment {
     if (!this.simulation) {
       this.simulation = {
         active: false,
+        mode: 'realtime',
+        durationDays: 7,
+        startedAt: null,
+        targetCompletionDate: null,
+        startProgress: 0,
         currentProgress: 0,
         waypoints: ['CHI', 'KC', 'DEN', 'SEA'],
         speedMultiplier: 1,
-        logs: 'Shipment registered.'
+        logs: 'Shipment registered.',
+        lastUpdated: null
       };
     }
   }
