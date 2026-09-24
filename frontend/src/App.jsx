@@ -4,7 +4,8 @@ import 'leaflet/dist/leaflet.css';
 import { 
   Truck, Plane, Ship, Activity, ClipboardList, PlusCircle, CheckCircle, 
   MapPin, LogOut, ArrowRight, Eye, EyeOff, Shield, Users, Package, RefreshCw, Mail, Lock,
-  SlidersHorizontal, Download, Printer, Search, Trash, MessageSquare, MessageCircle, Send, User
+  SlidersHorizontal, Download, Printer, Search, Trash, MessageSquare, MessageCircle, Send, User,
+  Clock, Zap
 } from 'lucide-react';
 
 const API_BASE = import.meta.env.VITE_API_BASE || 
