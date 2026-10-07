@@ -2501,6 +2501,47 @@ export default function App() {
     reader.readAsDataURL(file);
   };
 
+  // Add or replace the package photo of an existing shipment
+  const handleReplacePhoto = (shipment, file) => {
+    if (!file) return;
+    if (!file.type || !file.type.startsWith('image/')) {
+      alert('Please choose a valid image file (PNG, JPG, WEBP).');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (readerEvent) => {
+      const img = new Image();
+      img.onload = async () => {
+        const maxDim = 1280;
+        const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.round(img.width * scale);
+        canvas.height = Math.round(img.height * scale);
+        canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.84);
+        const sendEmail = window.confirm(`Save this photo for #${shipment.id}.\n\nAlso email it to ${shipment.customerEmail}?`);
+        try {
+          const res = await fetch(`${API_BASE}/shipments/${shipment.id}/image`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ packageImage: dataUrl, sendEmail })
+          });
+          const data = await res.json();
+          if (!res.ok) {
+            alert(data.error || 'Could not save the photo.');
+            return;
+          }
+          setShipments(prev => prev.map(s => s.id === shipment.id ? { ...s, packageImage: dataUrl } : s));
+          alert(sendEmail ? (data.emailSent ? 'Photo saved and emailed to the customer.' : `Photo saved, but the email failed: ${data.emailError || 'unknown error'}`) : 'Photo saved.');
+        } catch (err) {
+          alert('Could not reach the server.');
+        }
+      };
+      img.src = readerEvent.target.result;
+    };
+    reader.readAsDataURL(file);
+  };
+
   const handleImageUpload = (e) => {
     const file = e.target.files && e.target.files[0];
     if (file) processImageFile(file);
@@ -3695,6 +3736,7 @@ export default function App() {
                 <table className="portal-table-custom">
                   <thead>
                     <tr>
+                      <th>PACKAGE</th>
                       <th>TRACKING NUMBER</th>
                       <th>ORIGIN</th>
                       <th>DESTINATION</th>
@@ -3733,6 +3775,21 @@ export default function App() {
 
                       return (
                         <tr key={shipment.id}>
+                          <td>
+                            {shipment.packageImage ? (
+                              <img
+                                src={shipment.packageImage}
+                                alt={`Package ${shipment.id}`}
+                                title="Click to enlarge"
+                                onClick={() => setPhotoPreviewModal(shipment.packageImage)}
+                                style={{ width: '56px', height: '56px', objectFit: 'cover', borderRadius: '8px', border: '1px solid #E2E8F0', cursor: 'pointer', display: 'block' }}
+                              />
+                            ) : (
+                              <div style={{ width: '56px', height: '56px', borderRadius: '8px', border: '1px dashed #CBD5E1', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94A3B8' }}>
+                                <Package style={{ width: '20px', height: '20px' }} />
+                              </div>
+                            )}
+                          </td>
                           <td className="tracking-num-cell">
                             <div className="table-package-icon">
                               <Package style={{ width: '15px', height: '15px', color: '#FF6B00' }} />
@@ -3786,7 +3843,7 @@ export default function App() {
                     })}
                     {displayedShipments.length === 0 && (
                       <tr>
-                        <td colSpan="6" style={{ textAlign: 'center', padding: '40px 0', color: 'var(--text-secondary)' }}>
+                        <td colSpan="7" style={{ textAlign: 'center', padding: '40px 0', color: 'var(--text-secondary)' }}>
                           No shipments registered under this customer account.
                         </td>
                       </tr>
@@ -4381,6 +4438,20 @@ export default function App() {
                                     <Activity style={{ width: '13px', height: '13px' }} />
                                     <span style={{ marginLeft: '4px' }}>Simulate</span>
                                   </button>
+                                  <label
+                                    className="btn-tracker-filter"
+                                    style={{ padding: '6px 10px', height: 'auto', fontSize: '0.8rem', cursor: 'pointer', display: 'inline-flex', alignItems: 'center' }}
+                                    title={s.packageImage ? 'Replace package photo' : 'Add package photo'}
+                                  >
+                                    <input
+                                      type="file"
+                                      accept="image/*"
+                                      style={{ display: 'none' }}
+                                      onChange={(e) => { handleReplacePhoto(s, e.target.files && e.target.files[0]); e.target.value = ''; }}
+                                    />
+                                    <Package style={{ width: '13px', height: '13px' }} />
+                                    <span style={{ marginLeft: '4px' }}>{s.packageImage ? 'Photo' : 'Add Photo'}</span>
+                                  </label>
                                   <button 
                                     className="btn-tracker-filter" 
                                     style={{ padding: '6px 10px', height: 'auto', fontSize: '0.8rem', background: 'rgba(239, 68, 68, 0.08)', border: '1px solid rgba(239, 68, 68, 0.3)', color: '#ef4444' }}

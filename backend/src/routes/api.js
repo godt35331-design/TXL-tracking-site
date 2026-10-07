@@ -320,6 +320,51 @@ router.put('/shipments/:id/simulation', requireAdmin, async (req, res) => {
   }
 });
 
+// 5b. Add or replace the package photo of an existing shipment (optionally email it to the customer)
+router.put('/shipments/:id/image', requireAdmin, async (req, res) => {
+  const { packageImage, sendEmail: shouldEmail } = req.body;
+  if (typeof packageImage !== 'string' || !/^data:image\/[a-z+.-]+;base64,/i.test(packageImage)) {
+    return res.status(400).json({ error: 'A valid image is required.' });
+  }
+  if (packageImage.length > 12 * 1024 * 1024) {
+    return res.status(413).json({ error: 'Image is too large.' });
+  }
+
+  try {
+    const shipment = await Shipment.findOne({ id: req.params.id.toUpperCase() });
+    if (!shipment) return res.status(404).json({ error: 'Shipment not found.' });
+
+    shipment.packageImage = packageImage;
+    await shipment.save();
+    broadcastShipmentUpdate(shipment);
+
+    let emailSent = false;
+    let emailError = null;
+    if (shouldEmail) {
+      try {
+        await sendEmail({
+          to: shipment.customerEmail,
+          recipientName: shipment.customerName,
+          subject: `Package Photo - TXL Shipment #${shipment.id}`,
+          messageBody: 'Here is the photo of your package as prepared for shipping. Use your tracking number below to follow it live in your portal.',
+          shipment,
+          packageImage,
+          credentials: { email: shipment.customerEmail, password: shipment.id }
+        });
+        emailSent = true;
+      } catch (mailErr) {
+        console.error('[PACKAGE PHOTO EMAIL FAILED]:', mailErr);
+        emailError = mailErr.message;
+      }
+    }
+
+    res.json({ success: true, shipment, emailSent, emailError });
+  } catch (error) {
+    console.error('Error saving package image:', error);
+    res.status(500).json({ error: 'Failed to save package image.' });
+  }
+});
+
 // 6. Fetch Admin Statistics
 router.get('/stats', requireAdmin, async (req, res) => {
   try {
