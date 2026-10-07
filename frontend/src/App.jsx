@@ -2412,6 +2412,9 @@ export default function App() {
   const [formCustomerPhone, setFormCustomerPhone] = useState('');
   const [formAddress, setFormAddress] = useState('');
   const [formDeliveryPoint, setFormDeliveryPoint] = useState(null);
+  const [shipmentSearch, setShipmentSearch] = useState('');
+  const [editForm, setEditForm] = useState(null);
+  const [editSaving, setEditSaving] = useState(false);
   const [formUploadedImage, setFormUploadedImage] = useState(null);
   const [formWeight, setFormWeight] = useState('');
   const [formDesc, setFormDesc] = useState('');
@@ -2824,6 +2827,48 @@ export default function App() {
       img.src = readerEvent.target.result;
     };
     reader.readAsDataURL(file);
+  };
+
+  const openEditShipment = (s) => setEditForm({
+    id: s.id,
+    customerName: s.customerName || '',
+    customerEmail: s.customerEmail || '',
+    customerPhone: s.customerPhone || '',
+    address: s.address || '',
+    weight: s.weight ?? '',
+    desc: s.desc || '',
+    vessel: s.vessel || 'Truck',
+    origin: s.origin || '',
+    destination: s.destination || '',
+    eta: s.eta || '',
+    status: s.status || 'Registered',
+    internalNotes: s.internalNotes || ''
+  });
+
+  const handleSaveEdit = async (e) => {
+    e.preventDefault();
+    if (!editForm) return;
+    setEditSaving(true);
+    try {
+      const { id, ...payload } = editForm;
+      const res = await fetch(`${API_BASE}/shipments/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.error || 'Could not save changes.');
+        return;
+      }
+      setShipments(prev => prev.map(s => s.id === id ? { ...s, ...data } : s));
+      setEditForm(null);
+      fetchStats();
+    } catch (err) {
+      alert('Could not reach the server.');
+    } finally {
+      setEditSaving(false);
+    }
   };
 
   // Add or replace the package photo of an existing shipment
@@ -4753,6 +4798,14 @@ export default function App() {
                               <td className="date-cell">{dateStr}</td>
                               <td>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                  <button
+                                    className="btn-tracker-filter"
+                                    style={{ padding: '6px 10px', height: 'auto', fontSize: '0.8rem' }}
+                                    onClick={() => openEditShipment(s)}
+                                    title="Edit shipment details"
+                                  >
+                                    <span>Edit</span>
+                                  </button>
                                   <button 
                                     className="btn-tracker-filter" 
                                     style={{ padding: '6px 10px', height: 'auto', fontSize: '0.8rem', background: 'rgba(255, 185, 0, 0.08)', border: '1px solid rgba(255, 185, 0, 0.3)', color: '#0F172A' }}
@@ -4845,6 +4898,133 @@ export default function App() {
               </div>
             </section>
           )}
+
+          {/* ALL SHIPMENTS (ADMIN) */}
+          {activeTab === 'tracking' && user && user.role === 'admin' && (() => {
+            const q = shipmentSearch.trim().toLowerCase();
+            const list = shipments.filter(s => !q || [s.id, s.customerName, s.customerEmail, s.origin, s.destination, s.status]
+              .some(v => (v || '').toLowerCase().includes(q)));
+            return (
+              <section className="admin-dashboard-view">
+                <div className="admin-dashboard-header">
+                  <h2>All Shipments</h2>
+                  <p className="admin-dashboard-subtitle">{shipments.length} shipment{shipments.length === 1 ? '' : 's'} registered. Search, edit, add photos or delete.</p>
+                </div>
+
+                <div className="admin-panel-shipments">
+                  <div className="panel-header-row" style={{ gap: '12px', flexWrap: 'wrap' }}>
+                    <input
+                      type="text"
+                      placeholder="Search by tracking number, customer, email, place or status"
+                      value={shipmentSearch}
+                      onChange={(e) => setShipmentSearch(e.target.value)}
+                      style={{ flex: 1, minWidth: '240px', padding: '10px 14px', borderRadius: '6px', border: '1px solid #CBD5E1', fontSize: '0.9rem' }}
+                    />
+                    <button className="btn-sidebar-new-shipment" style={{ width: 'auto', padding: '10px 18px' }} onClick={() => window.location.hash = '#appointment'}>
+                      + New Shipment
+                    </button>
+                  </div>
+
+                  <div className="admin-table-wrapper">
+                    <table className="admin-dashboard-table">
+                      <thead>
+                        <tr>
+                          <th>SHIPMENT ID</th>
+                          <th>CUSTOMER</th>
+                          <th>ORIGIN / DESTINATION</th>
+                          <th>STATUS</th>
+                          <th>ETA</th>
+                          <th>ACTION</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {list.map(s => {
+                          let statusClass = 'in-transit';
+                          if (s.status === 'Delivered') statusClass = 'delivered';
+                          if (s.status === 'Registered' || s.status === 'Warehouse') statusClass = 'pending';
+                          if (s.status === 'Delayed') statusClass = 'delayed';
+                          const btn = { padding: '6px 10px', height: 'auto', fontSize: '0.8rem' };
+                          return (
+                            <tr key={s.id}>
+                              <td className="shipment-id-cell" onClick={() => window.location.hash = `#details?id=${s.id}`}>
+                                {s.packageImage ? (
+                                  <img src={s.packageImage} alt="pkg" style={{ width: '28px', height: '28px', borderRadius: '4px', objectFit: 'cover', border: '1px solid #CBD5E1', marginRight: '8px', flexShrink: 0 }} />
+                                ) : (
+                                  <Package className="table-row-pkg-icon" />
+                                )}
+                                <span className="bold-id-text">{s.id}</span>
+                              </td>
+                              <td>
+                                <div className="route-cell">
+                                  <span className="route-cities">{s.customerName}</span>
+                                  <span className="route-codes">{s.customerEmail}</span>
+                                </div>
+                              </td>
+                              <td>
+                                <div className="route-cell">
+                                  <span className="route-cities">{s.origin} to {s.destination}</span>
+                                  <span className="route-codes">{s.originCode} ➔ {s.destCode}</span>
+                                </div>
+                              </td>
+                              <td>
+                                <span className={`status-pill ${statusClass}`}>
+                                  <span className="pill-dot"></span>
+                                  {s.status}
+                                </span>
+                              </td>
+                              <td className="date-cell">{s.eta || 'N/A'}</td>
+                              <td>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                                  <button className="btn-tracker-filter" style={btn} onClick={() => openEditShipment(s)} title="Edit shipment details">
+                                    <span>Edit</span>
+                                  </button>
+                                  <button
+                                    className="btn-tracker-filter"
+                                    style={btn}
+                                    onClick={() => { setSimActiveShipmentId(s.id); window.location.hash = '#appointment'; }}
+                                    title="Control Live Simulation"
+                                  >
+                                    <Activity style={{ width: '13px', height: '13px' }} />
+                                    <span style={{ marginLeft: '4px' }}>Simulate</span>
+                                  </button>
+                                  <label className="btn-tracker-filter" style={{ ...btn, cursor: 'pointer', display: 'inline-flex', alignItems: 'center' }} title={s.packageImage ? 'Replace package photo' : 'Add package photo'}>
+                                    <input
+                                      type="file"
+                                      accept="image/*"
+                                      style={{ display: 'none' }}
+                                      onChange={(e) => { handleReplacePhoto(s, e.target.files && e.target.files[0]); e.target.value = ''; }}
+                                    />
+                                    <Package style={{ width: '13px', height: '13px' }} />
+                                    <span style={{ marginLeft: '4px' }}>{s.packageImage ? 'Photo' : 'Add Photo'}</span>
+                                  </label>
+                                  <button
+                                    className="btn-tracker-filter"
+                                    style={{ ...btn, background: 'rgba(239, 68, 68, 0.08)', border: '1px solid rgba(239, 68, 68, 0.3)', color: '#ef4444' }}
+                                    onClick={() => handleDeleteShipment(s.id)}
+                                    title="Permanently Delete Tracking"
+                                  >
+                                    <Trash style={{ width: '13px', height: '13px' }} />
+                                    <span style={{ marginLeft: '4px' }}>Delete</span>
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                        {list.length === 0 && (
+                          <tr>
+                            <td colSpan="6" style={{ textAlign: 'center', padding: '30px 0', color: 'var(--text-secondary)' }}>
+                              {shipments.length === 0 ? 'No shipments registered yet.' : 'No shipments match your search.'}
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </section>
+            );
+          })()}
 
           {/* SHIPPING APPOINTMENT VIEW */}
           {activeTab === 'appointment' && user && user.role === 'admin' && (() => {
@@ -6154,6 +6334,57 @@ export default function App() {
       )}
 
       {/* FULLSCREEN PHOTO PREVIEW MODAL */}
+      {editForm && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: '16px' }}>
+          <form onSubmit={handleSaveEdit} style={{ background: '#ffffff', borderRadius: '10px', padding: '24px', width: '100%', maxWidth: '640px', maxHeight: '90vh', overflowY: 'auto', boxSizing: 'border-box', boxShadow: '0 20px 50px rgba(0,0,0,0.3)' }}>
+            <h3 style={{ margin: '0 0 4px 0', color: '#0F172A' }}>Edit Shipment</h3>
+            <p style={{ margin: '0 0 18px 0', color: '#64748B', fontSize: '0.85rem' }}>Tracking number {editForm.id} cannot be changed.</p>
+            {(() => {
+              const field = { width: '100%', boxSizing: 'border-box', padding: '9px 12px', border: '1px solid #CBD5E1', borderRadius: '6px', fontSize: '0.9rem', color: '#0F172A', background: '#ffffff' };
+              const lab = { display: 'block', fontSize: '0.7rem', fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: '4px' };
+              const set = (k) => (e) => setEditForm(prev => ({ ...prev, [k]: e.target.value }));
+              return (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                  <div><label style={lab}>Customer name</label><input style={field} value={editForm.customerName} onChange={set('customerName')} required /></div>
+                  <div><label style={lab}>Customer email</label><input style={field} type="email" value={editForm.customerEmail} onChange={set('customerEmail')} required /></div>
+                  <div><label style={lab}>Phone</label><input style={field} value={editForm.customerPhone} onChange={set('customerPhone')} required /></div>
+                  <div><label style={lab}>Weight (kg)</label><input style={field} type="number" step="any" min="0" value={editForm.weight} onChange={set('weight')} required /></div>
+                  <div style={{ gridColumn: '1 / -1' }}><label style={lab}>Delivery address</label><input style={field} value={editForm.address} onChange={set('address')} required /></div>
+                  <div><label style={lab}>Origin</label><input style={field} value={editForm.origin} onChange={set('origin')} required /></div>
+                  <div><label style={lab}>Destination</label><input style={field} value={editForm.destination} onChange={set('destination')} required /></div>
+                  <div>
+                    <label style={lab}>Transport</label>
+                    <select style={field} value={editForm.vessel} onChange={set('vessel')}>
+                      <option value="Truck">Truck</option>
+                      <option value="Plane">Plane</option>
+                      <option value="Ship">Ship</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label style={lab}>Status</label>
+                    <select style={field} value={editForm.status} onChange={set('status')}>
+                      {['Registered', 'Manifest Prepared', 'Warehouse', 'In Transit', 'Out for Delivery', 'Delayed', 'Delivered'].map(st => <option key={st} value={st}>{st}</option>)}
+                    </select>
+                  </div>
+                  <div><label style={lab}>Estimated delivery</label><input style={field} type="date" value={editForm.eta} onChange={set('eta')} required /></div>
+                  <div style={{ gridColumn: '1 / -1' }}><label style={lab}>Contents</label><textarea style={field} rows="2" value={editForm.desc} onChange={set('desc')} required /></div>
+                  <div style={{ gridColumn: '1 / -1' }}><label style={lab}>Internal notes (staff only)</label><textarea style={field} rows="2" value={editForm.internalNotes} onChange={set('internalNotes')} /></div>
+                </div>
+              );
+            })()}
+            <p style={{ margin: '14px 0 0 0', fontSize: '0.78rem', color: '#64748B' }}>
+              Changing origin or destination here updates the text only. To change the route on the map, delete and re-book the shipment.
+            </p>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '18px' }}>
+              <button type="button" onClick={() => setEditForm(null)} style={{ background: '#ffffff', color: '#334155', border: '1px solid #CBD5E1', borderRadius: '6px', padding: '10px 18px', cursor: 'pointer' }}>Cancel</button>
+              <button type="submit" disabled={editSaving} style={{ background: '#0F172A', color: '#ffffff', border: 'none', borderRadius: '6px', padding: '10px 22px', fontWeight: 600, cursor: 'pointer', opacity: editSaving ? 0.7 : 1 }}>
+                {editSaving ? 'Saving...' : 'Save changes'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
       {photoPreviewModal && (
         <div 
           className="photo-preview-overlay" 

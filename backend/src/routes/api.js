@@ -348,6 +348,56 @@ router.put('/shipments/:id/simulation', requireAdmin, async (req, res) => {
   }
 });
 
+// 5a. Admin edits the details of an existing shipment
+router.put('/shipments/:id', requireAdmin, async (req, res) => {
+  const b = req.body || {};
+  try {
+    const shipment = await Shipment.findOne({ id: req.params.id.toUpperCase() });
+    if (!shipment) return res.status(404).json({ error: 'Shipment not found.' });
+
+    const text = (v, max = 300) => String(v).trim().slice(0, max);
+    if (b.customerName !== undefined && text(b.customerName)) shipment.customerName = text(b.customerName, 120);
+    if (b.customerPhone !== undefined && text(b.customerPhone)) shipment.customerPhone = text(b.customerPhone, 40);
+    if (b.address !== undefined && text(b.address)) shipment.address = text(b.address);
+    if (b.desc !== undefined && text(b.desc)) shipment.desc = text(b.desc, 1000);
+    if (b.origin !== undefined && text(b.origin)) shipment.origin = text(b.origin);
+    if (b.destination !== undefined && text(b.destination)) shipment.destination = text(b.destination);
+    if (b.eta !== undefined && text(b.eta, 40)) shipment.eta = text(b.eta, 40);
+    if (b.status !== undefined && text(b.status, 40)) shipment.status = text(b.status, 40);
+    if (b.internalNotes !== undefined) shipment.internalNotes = text(b.internalNotes, 2000);
+    if (b.vessel !== undefined) {
+      if (!['Truck', 'Plane', 'Ship'].includes(b.vessel)) return res.status(400).json({ error: 'Invalid transport type.' });
+      shipment.vessel = b.vessel;
+    }
+    if (b.weight !== undefined) {
+      const w = Number(b.weight);
+      if (!Number.isFinite(w) || w <= 0) return res.status(400).json({ error: 'Weight must be a positive number.' });
+      shipment.weight = w;
+    }
+
+    // Changing the customer email moves the shipment between customer accounts
+    if (b.customerEmail !== undefined && text(b.customerEmail)) {
+      const newEmail = text(b.customerEmail, 200).toLowerCase();
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newEmail)) return res.status(400).json({ error: 'Enter a valid customer email.' });
+      const oldEmail = (shipment.customerEmail || '').toLowerCase();
+      if (newEmail !== oldEmail) {
+        shipment.customerEmail = newEmail;
+        await Customer.findOneAndUpdate({ email: newEmail }, { $inc: { volume: 1 }, name: shipment.customerName }, { upsert: true, new: true });
+        await Customer.findOneAndUpdate({ email: oldEmail }, { $inc: { volume: -1 } });
+        const oldCust = await Customer.findOne({ email: oldEmail });
+        if (oldCust && oldCust.volume <= 0) await Customer.deleteOne({ email: oldEmail });
+      }
+    }
+
+    await shipment.save();
+    broadcastShipmentUpdate(shipment);
+    res.json(publicShipment(shipment, req.auth));
+  } catch (error) {
+    console.error('Error editing shipment:', error);
+    res.status(500).json({ error: 'Failed to save changes.' });
+  }
+});
+
 // 5b. Add or replace the package photo of an existing shipment (optionally email it to the customer)
 router.put('/shipments/:id/image', requireAdmin, async (req, res) => {
   const { packageImage, sendEmail: shouldEmail } = req.body;
