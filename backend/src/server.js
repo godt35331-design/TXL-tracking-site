@@ -6,9 +6,13 @@ import cors from 'cors';
 import { connectDatabase } from './db/connection.js';
 import apiRouter, { setWssInstance, broadcastShipmentUpdate } from './routes/api.js';
 import { startSimulationEngine } from './services/simulationEngine.js';
+import { verifyToken } from './services/auth.js';
 
 const app = express();
 const PORT = process.env.PORT || 5000;
+
+// Render sits behind a proxy; needed for correct client IPs (login throttling)
+app.set('trust proxy', 1);
 
 // Enable CORS for frontend client port (React default 5173 or preview 4173)
 app.use(cors({
@@ -37,8 +41,17 @@ const wss = new WebSocketServer({ server });
 // Bind WebSocket to API router broadcast functions
 setWssInstance(wss);
 
-wss.on('connection', (ws) => {
+wss.on('connection', (ws, req) => {
   console.log('New WebSocket Client connected.');
+
+  // Signed-in users connect with ?token=...; guests only receive shipments they subscribe to
+  try {
+    const token = new URL(req.url, 'http://localhost').searchParams.get('token');
+    ws.auth = verifyToken(token);
+  } catch (e) {
+    ws.auth = null;
+  }
+  ws.subscribed = new Set();
 
   // Handle incoming checks
   ws.on('message', (message) => {
@@ -46,6 +59,8 @@ wss.on('connection', (ws) => {
       const parsed = JSON.parse(message);
       if (parsed.type === 'PING') {
         ws.send(JSON.stringify({ type: 'PONG' }));
+      } else if (parsed.type === 'SUBSCRIBE' && parsed.id) {
+        ws.subscribed.add(String(parsed.id).toUpperCase());
       }
     } catch (e) {
       console.warn('Invalid socket message parsed:', message.toString());

@@ -13,6 +13,26 @@ const API_BASE = import.meta.env.VITE_API_BASE ||
     ? 'http://127.0.0.1:5000/api' 
     : `${window.location.origin}/api`);
 
+// Attach the signed-in user's session token to every call to our own API; drop the session if it expires
+const nativeFetch = window.fetch.bind(window);
+window.fetch = (input, init = {}) => {
+  const url = typeof input === 'string' ? input : (input && input.url) || '';
+  if (!url.startsWith(API_BASE)) return nativeFetch(input, init);
+  let token = null;
+  try { token = JSON.parse(localStorage.getItem('txl_user') || 'null')?.token || null; } catch (e) { token = null; }
+  const headers = new Headers(init.headers || {});
+  if (token && !headers.has('Authorization')) headers.set('Authorization', `Bearer ${token}`);
+  return nativeFetch(input, { ...init, headers }).then(res => {
+    if (res.status === 401 && token && !url.includes('/auth/login')) {
+      localStorage.removeItem('txl_user');
+      localStorage.removeItem('ups_user');
+      window.location.hash = '#home';
+      window.location.reload();
+    }
+    return res;
+  });
+};
+
 const WS_BASE = import.meta.env.VITE_WS_BASE || 
   ((window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') 
     ? 'ws://127.0.0.1:5000' 
@@ -1970,6 +1990,11 @@ const getValidSession = () => {
     const savedStr = localStorage.getItem('txl_user') || localStorage.getItem('ups_user');
     if (!savedStr) return null;
     const saved = JSON.parse(savedStr);
+    if (!saved.token) {
+      localStorage.removeItem('txl_user');
+      localStorage.removeItem('ups_user');
+      return null;
+    }
 
     // Persist active session across browser refreshes for 7 days (7 * 24 * 60 * 60 * 1000 ms)
     const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
@@ -2062,11 +2087,8 @@ export default function App() {
   const [selectedShipmentId, setSelectedShipmentId] = useState(null);
   
   // Login Form States
-  const [loginEmail, setLoginEmail] = useState('');
-  const [loginPassword, setLoginPassword] = useState('');
   const [loginTrackingId, setLoginTrackingId] = useState('');
   const [loginError, setLoginError] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
   const [loggingIn, setLoggingIn] = useState(false);
 
   // Shipping Form States
@@ -2098,11 +2120,6 @@ export default function App() {
   const [trackPromptError, setTrackPromptError] = useState('');
 
   // Visitor Quick Tracking Modal States
-  const [showVisitorTrackModal, setShowVisitorTrackModal] = useState(false);
-  const [visitorTrackInput, setVisitorTrackInput] = useState('');
-  const [visitorTrackError, setVisitorTrackError] = useState('');
-  const [visitorTrackResult, setVisitorTrackResult] = useState(null);
-  const [visitorTrackLoading, setVisitorTrackLoading] = useState(false);
 
   // Tracking Search
   const [searchTrackId, setSearchTrackId] = useState('');
@@ -2204,8 +2221,8 @@ export default function App() {
   // Fetch initial core shipments / data
   const fetchShipments = async () => {
     try {
-      const emailQuery = user ? (user.role === 'admin' ? '' : `?email=${user.email}`) : '';
-      const res = await fetch(`${API_BASE}/shipments${emailQuery}`);
+      if (!user) return;
+      const res = await fetch(`${API_BASE}/shipments`);
       const data = await res.json();
       if (Array.isArray(data)) {
         setShipments(data);
@@ -2246,10 +2263,12 @@ export default function App() {
     let reconnectTimeout = null;
 
     const connectWS = () => {
-      ws = new WebSocket(WS_BASE);
+      const token = (userRef.current && userRef.current.token) || '';
+      ws = new WebSocket(token ? `${WS_BASE}?token=${encodeURIComponent(token)}` : WS_BASE);
 
       ws.onopen = () => {
         console.log('Connected to real-time telemetry Socket channel.');
+        if (selectedShipmentId) ws.send(JSON.stringify({ type: 'SUBSCRIBE', id: selectedShipmentId }));
       };
 
       ws.onmessage = (event) => {
@@ -2323,7 +2342,7 @@ export default function App() {
       if (ws) ws.close();
       if (reconnectTimeout) clearTimeout(reconnectTimeout);
     };
-  }, [selectedShipmentId]);
+  }, [selectedShipmentId, user]);
 
   // 1. User login trigger
   const handleLogin = async (e) => {
@@ -2369,41 +2388,6 @@ export default function App() {
     userRef.current = null;
     setActiveTab('home');
     window.location.hash = '#home';
-  };
-
-  // 2. Direct Role switch bypass (for testing/proto verification)
-  const handleRoleBypass = async (role) => {
-    localStorage.removeItem('txl_user');
-    localStorage.removeItem('ups_user');
-    setUser(null);
-    userRef.current = null;
-    
-    if (role === 'visitor') {
-      window.location.hash = '#home';
-      return;
-    }
-
-    const testEmail = role === 'admin' ? 'admin@txlglobaltracking.com' : 'customer@txlglobaltracking.com';
-    try {
-      const res = await fetch(`${API_BASE}/auth/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: testEmail, password: role === 'admin' ? 'admin123' : 'txl123' })
-      });
-      const data = await res.json();
-      if (res.ok) {
-        const sessionData = {
-          ...data,
-          loginTimestamp: Date.now()
-        };
-        localStorage.setItem('txl_user', JSON.stringify(sessionData));
-        setUser(sessionData);
-        userRef.current = sessionData;
-        window.location.hash = role === 'admin' ? '#admin' : '#dashboard';
-      }
-    } catch (e) {
-      alert('Bypass connection error. Is backend server running on port 5000?');
-    }
   };
 
   // 3. Admin shipping appointment creation
@@ -3173,7 +3157,7 @@ export default function App() {
                       <img className="profile-avatar" src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=80&fit=crop&q=80" alt="avatar" />
                       <img className="profile-avatar" src="https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?w=80&fit=crop&q=80" alt="avatar" />
                     </div>
-                    <span className="trust-caption">12,000+ Businesses Trust Our Global Network</span>
+                    <span className="trust-caption">Reliable Global Shipping Network</span>
                   </div>
                 </div>
 
@@ -3973,18 +3957,18 @@ export default function App() {
                         Live Email Tracking Telemetry
                       </h4>
                       <p style={{ margin: 0, color: '#e2e8f0', fontSize: '0.85rem' }}>
-                        Viewing shipment #{activeShipment.id}. Log in to your Customer Portal using the credentials sent to your email to access full account management.
+                        Viewing shipment #{activeShipment.id}. Enter your tracking number to open your Customer Portal.
                       </p>
                     </div>
                     <button 
                       className="btn-hero-primary" 
                       style={{ padding: '8px 18px', fontSize: '0.85rem' }}
                       onClick={() => {
-                        setLoginEmail(activeShipment.customerEmail || '');
+                        setLoginTrackingId(activeShipment.id || '');
                         window.location.hash = '#login';
                       }}
                     >
-                      Login to Account →
+                      Open My Portal →
                     </button>
                   </div>
                 )}
@@ -5924,223 +5908,6 @@ export default function App() {
         </div>
       )}
 
-      {showVisitorTrackModal && (
-        <div className="credentials-overlay" style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          background: 'rgba(0, 0, 0, 0.75)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 9999,
-          backdropFilter: 'blur(4px)'
-        }}>
-          <div className="credentials-modal" style={{
-            background: 'rgba(30, 24, 21, 0.95)',
-            border: '1px solid #0F172A',
-            borderRadius: '12px',
-            padding: '24px',
-            width: '100%',
-            maxWidth: '420px',
-            margin: '0 16px',
-            color: '#fff',
-            boxSizing: 'border-box',
-            boxShadow: '0 8px 32px rgba(0, 0, 0, 0.5)'
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
-              <div style={{
-                background: '#0F172A',
-                borderRadius: '50%',
-                width: '32px',
-                height: '32px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: '#FF6B00'
-              }}>
-                <Search style={{ width: '16px', height: '16px' }} />
-              </div>
-              <h3 style={{ margin: 0, color: '#0F172A', fontSize: '1.2rem', fontFamily: 'Outfit, sans-serif' }}>
-                Track Your Shipment
-              </h3>
-            </div>
-
-            {!visitorTrackResult ? (
-              <form onSubmit={async (e) => {
-                e.preventDefault();
-                setVisitorTrackError('');
-                if (!visitorTrackInput.trim()) {
-                  setVisitorTrackError('Please enter a tracking number.');
-                  return;
-                }
-                setVisitorTrackLoading(true);
-                try {
-                  const res = await fetch(`${API_BASE}/shipments/${visitorTrackInput.trim().toUpperCase()}`);
-                  const data = await res.json();
-                  if (res.ok && data && data.id) {
-                    setVisitorTrackResult(data);
-                  } else {
-                    setVisitorTrackError('Tracking ID not found in system databases. Please verify and try again.');
-                  }
-                } catch (err) {
-                  setVisitorTrackError('Server is currently offline.');
-                } finally {
-                  setVisitorTrackLoading(false);
-                }
-              }}>
-                <p style={{ fontSize: '0.85rem', color: '#cccccc', margin: '0 0 16px 0', lineHeight: '1.4' }}>
-                  Please enter the 8-digit tracking ID reference printed on your receipt or dispatch email.
-                </p>
-                <div style={{ marginBottom: '16px' }}>
-                  <label style={{ display: 'block', fontSize: '0.75rem', color: '#0F172A', textTransform: 'uppercase', marginBottom: '6px', fontWeight: 'bold' }}>
-                    TRACKING NUMBER
-                  </label>
-                  <input 
-                    type="text"
-                    placeholder="TXL-00000000"
-                    value={visitorTrackInput}
-                    onChange={(e) => setVisitorTrackInput(e.target.value)}
-                    style={{
-                      width: '100%',
-                      background: 'rgba(255, 255, 255, 0.05)',
-                      border: '1px solid #0F172A',
-                      borderRadius: '6px',
-                      padding: '10px',
-                      color: '#fff',
-                      fontSize: '0.95rem',
-                      fontFamily: 'monospace',
-                      boxSizing: 'border-box'
-                    }}
-                  />
-                  {visitorTrackError && (
-                    <span style={{ display: 'block', color: '#ff4d4d', fontSize: '0.75rem', marginTop: '6px' }}>
-                      {visitorTrackError}
-                    </span>
-                  )}
-                </div>
-
-                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
-                  <button 
-                    type="button" 
-                    onClick={() => setShowVisitorTrackModal(false)}
-                    style={{
-                      background: 'none',
-                      color: '#ccc',
-                      border: '1px solid #444',
-                      borderRadius: '6px',
-                      padding: '10px 16px',
-                      cursor: 'pointer',
-                      fontSize: '0.9rem'
-                    }}
-                  >
-                    CANCEL
-                  </button>
-                  <button 
-                    type="submit" 
-                    disabled={visitorTrackLoading}
-                    style={{
-                      background: 'linear-gradient(135deg, #0F172A 0%, #FF6B00 100%)',
-                      color: '#ffffff',
-                      border: 'none',
-                      borderRadius: '6px',
-                      padding: '10px 20px',
-                      fontWeight: 'bold',
-                      cursor: 'pointer',
-                      fontSize: '0.9rem',
-                      opacity: visitorTrackLoading ? 0.7 : 1
-                    }}
-                  >
-                    {visitorTrackLoading ? 'SEARCHING...' : 'TRACK SHIPMENT'}
-                  </button>
-                </div>
-              </form>
-            ) : (
-              <div>
-                {/* 📄 Written Information Cargo Slip */}
-                <div style={{
-                  background: 'rgba(255, 255, 255, 0.03)',
-                  border: '1px dashed rgba(255, 204, 0, 0.5)',
-                  borderRadius: '8px',
-                  padding: '16px',
-                  marginBottom: '16px',
-                  fontSize: '0.85rem',
-                  lineHeight: '1.6',
-                  fontFamily: 'monospace'
-                }}>
-                  <div style={{ textAlign: 'center', borderBottom: '1px dashed rgba(255,204,0,0.3)', paddingBottom: '8px', marginBottom: '12px' }}>
-                    <span style={{ fontSize: '1rem', fontWeight: 'bold', color: '#0F172A' }}>TXL EXPRESS CARGO RECEIPT</span>
-                  </div>
-                  <div><strong>TRACKING ID:</strong> {visitorTrackResult.id}</div>
-                  <div><strong>RECIPIENT:</strong> {visitorTrackResult.customerName}</div>
-                  <div><strong>DESTINATION:</strong> {visitorTrackResult.address}</div>
-                  <div><strong>CARGO WEIGHT:</strong> {visitorTrackResult.weight} lbs</div>
-                  <div><strong>VESSEL TYPE:</strong> {visitorTrackResult.vessel}</div>
-                  <div style={{ height: '8px' }}></div>
-                  <div style={{ borderTop: '1px dashed rgba(255,185,0,0.2)', paddingTop: '8px' }}>
-                    <strong>STATUS:</strong> <span style={{ color: '#0F172A', fontWeight: 'bold' }}>{visitorTrackResult.status}</span>
-                  </div>
-                  <div><strong>LAST LOCATION:</strong> {visitorTrackResult.currentLocationName}</div>
-                  <div><strong>EST. DELIVERY:</strong> {visitorTrackResult.eta || 'Pending'}</div>
-                </div>
-
-                {/* Promotional banner calling to login */}
-                <div style={{
-                  background: 'rgba(255, 185, 0, 0.1)',
-                  borderLeft: '4px solid #0F172A',
-                  padding: '12px',
-                  borderRadius: '4px',
-                  marginBottom: '20px',
-                  fontSize: '0.8rem',
-                  color: '#fff',
-                  lineHeight: '1.4'
-                }}>
-                  🔑 Please login into your account to keep track of thier details on live map how they are moving still it gets to tier destination
-                </div>
-
-                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
-                  <button 
-                    type="button" 
-                    onClick={() => setVisitorTrackResult(null)}
-                    style={{
-                      background: 'none',
-                      color: '#ccc',
-                      border: '1px solid #444',
-                      borderRadius: '6px',
-                      padding: '10px 16px',
-                      cursor: 'pointer',
-                      fontSize: '0.9rem'
-                    }}
-                  >
-                    BACK
-                  </button>
-                  <button 
-                    type="button" 
-                    onClick={() => {
-                      setShowVisitorTrackModal(false);
-                      window.location.hash = '#login';
-                    }}
-                    style={{
-                      background: 'linear-gradient(135deg, #0F172A 0%, #d89600 100%)',
-                      color: '#1b1613',
-                      border: 'none',
-                      borderRadius: '6px',
-                      padding: '10px 20px',
-                      fontWeight: 'bold',
-                      cursor: 'pointer',
-                      fontSize: '0.9rem'
-                    }}
-                  >
-                    GO TO LOGIN
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
     </div>
   );
 }

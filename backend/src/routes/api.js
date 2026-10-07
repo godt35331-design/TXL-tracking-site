@@ -2,8 +2,12 @@ import express from 'express';
 import { Customer, Shipment, Message } from '../db/models.js';
 import { sendEmail } from '../services/emailService.js';
 import { advanceShipmentSimulation } from '../services/simulationEngine.js';
+import { attachAuth, requireUser, requireAdmin, signToken, isLoginBlocked, recordLoginFailure, clearLoginFailures } from '../services/auth.js';
 
 const router = express.Router();
+
+// Every request gets req.auth (the signed-in user, or null)
+router.use(attachAuth);
 
 // WebSocket broadcast helper register (mounted from server.js)
 let wssInstance = null;
@@ -11,61 +15,84 @@ export function setWssInstance(wss) {
   wssInstance = wss;
 }
 
-export function broadcastShipmentUpdate(shipment) {
+// Deliver a socket event only to admins, the owning customer, and (optionally) guests who subscribed to a shipment
+function sendToClients(type, payload, { email, shipmentId } = {}) {
   if (!wssInstance) return;
-  const message = JSON.stringify({
-    type: 'SHIPMENT_UPDATE',
-    payload: shipment
-  });
-  
+  const message = JSON.stringify({ type, payload });
+  const cleanEmail = (email || '').trim().toLowerCase();
   wssInstance.clients.forEach(client => {
-    if (client.readyState === 1) { // OPEN
-      client.send(message);
-    }
+    if (client.readyState !== 1) return; // OPEN
+    const auth = client.auth;
+    const allowed = (auth && auth.role === 'admin')
+      || (cleanEmail && auth && (auth.email || '').toLowerCase() === cleanEmail)
+      || (shipmentId && client.subscribed && client.subscribed.has(String(shipmentId).toUpperCase()));
+    if (allowed) client.send(message);
   });
 }
 
-// 1. Authentication Router API
+// Customers and guests never see internal admin notes
+function publicShipment(shipment, auth) {
+  const obj = typeof shipment.toObject === 'function' ? shipment.toObject() : { ...shipment };
+  if (!auth || auth.role !== 'admin') delete obj.internalNotes;
+  return obj;
+}
+
+export function broadcastShipmentUpdate(shipment) {
+  sendToClients('SHIPMENT_UPDATE', publicShipment(shipment, null), {
+    email: shipment.customerEmail,
+    shipmentId: shipment.id
+  });
+}
+
+// 1. Authentication Router API (tracking number only)
 router.post('/auth/login', async (req, res) => {
   const { trackingId } = req.body;
+  const ip = req.ip;
 
-  // Customer portal access using only a tracking number
-  if (trackingId) {
-    const cleanTracking = String(trackingId).trim().toUpperCase();
-    const adminTracking = (process.env.ADMIN_TRACKING_ID || 'ADM-K7Q2-X9PL-4M').trim().toUpperCase();
-    if (cleanTracking === adminTracking) {
-      return res.json({ email: (process.env.ADMIN_EMAIL || 'admin@txlglobaltracking.com').trim().toLowerCase(), name: 'TXL System Administrator', role: 'admin' });
-    }
-    try {
-      const shipment = await Shipment.findOne({ id: String(trackingId).trim().toUpperCase() });
-      if (!shipment) {
-        return res.status(404).json({ error: 'Tracking number not found. Please check and try again.' });
-      }
-      return res.json({
-        email: (shipment.customerEmail || '').trim().toLowerCase(),
-        name: shipment.customerName,
-        role: 'customer'
-      });
-    } catch (error) {
-      console.error('Error logging in by tracking number:', error);
-      return res.status(500).json({ error: 'Server authentication crash.' });
-    }
+  if (!trackingId) {
+    return res.status(400).json({ error: 'Tracking number is required.' });
+  }
+  if (isLoginBlocked(ip)) {
+    return res.status(429).json({ error: 'Too many failed attempts. Please try again in 15 minutes.' });
   }
 
-  return res.status(400).json({ error: 'Tracking number is required.' });
-});
+  const cleanTracking = String(trackingId).trim().toUpperCase();
+  const adminTracking = (process.env.ADMIN_TRACKING_ID || '').trim().toUpperCase();
 
-// 2. Fetch Customer Shipments / Admin Directories
-router.get('/shipments', async (req, res) => {
-  const { email } = req.query;
-  const configuredAdminEmail = (process.env.ADMIN_EMAIL || 'admin@txlglobaltracking.com').trim().toLowerCase();
+  if (adminTracking && cleanTracking === adminTracking) {
+    clearLoginFailures(ip);
+    const session = {
+      email: (process.env.ADMIN_EMAIL || 'admin@txlglobaltracking.com').trim().toLowerCase(),
+      name: 'TXL System Administrator',
+      role: 'admin'
+    };
+    return res.json({ ...session, token: signToken(session) });
+  }
 
   try {
-    let query = {};
-    if (email && email.trim().toLowerCase() !== configuredAdminEmail && email.trim().toLowerCase() !== 'admin@txlglobaltracking.com' && email.trim().toLowerCase() !== 'admin@dhl.com') {
-      query.customerEmail = email.trim().toLowerCase();
+    const shipment = await Shipment.findOne({ id: cleanTracking });
+    if (!shipment) {
+      recordLoginFailure(ip);
+      return res.status(404).json({ error: 'Tracking number not found. Please check and try again.' });
     }
-    
+    clearLoginFailures(ip);
+    const session = {
+      email: (shipment.customerEmail || '').trim().toLowerCase(),
+      name: shipment.customerName,
+      role: 'customer'
+    };
+    return res.json({ ...session, token: signToken(session) });
+  } catch (error) {
+    console.error('Error logging in by tracking number:', error);
+    return res.status(500).json({ error: 'Server authentication crash.' });
+  }
+});
+
+// 2. Fetch Customer Shipments / Admin Directories (admin: all, customer: only their own)
+router.get('/shipments', requireUser, async (req, res) => {
+  try {
+    const query = req.auth.role === 'admin' ? {} : { customerEmail: req.auth.email };
+
     const shipments = await Shipment.find(query).sort({ createdAt: -1 });
     // Autonomously advance any active real-time schedule simulations
     for (const s of shipments) {
@@ -74,7 +101,7 @@ router.get('/shipments', async (req, res) => {
         if (changed) await s.save();
       }
     }
-    res.json(shipments);
+    res.json(shipments.map(s => publicShipment(s, req.auth)));
   } catch (error) {
     console.error('Error retrieving shipments:', error);
     res.status(500).json({ error: 'Database read failure.' });
@@ -94,7 +121,7 @@ router.get('/shipments/:id', async (req, res) => {
       const changed = advanceShipmentSimulation(shipment);
       if (changed) await shipment.save();
     }
-    res.json(shipment);
+    res.json(publicShipment(shipment, req.auth));
   } catch (error) {
     console.error('Error searching shipment details:', error);
     res.status(500).json({ error: 'Database search fault.' });
@@ -131,7 +158,7 @@ router.get('/shipments/:id/image', async (req, res) => {
 });
 
 // 4. Admin Dispatch Appointment (Insert Cargo Row)
-router.post('/shipments', async (req, res) => {
+router.post('/shipments', requireAdmin, async (req, res) => {
   const sData = req.body;
 
   try {
@@ -174,25 +201,13 @@ router.post('/shipments', async (req, res) => {
 
     await newShipment.save();
 
-    // Check if customer already exists, fetch password if they do, or generate a new one
+    // Create or update the customer record (customers sign in with their tracking number, no password)
     const custEmail = sData.customerEmail.trim().toLowerCase();
-    let existingCustomer = await Customer.findOne({ email: custEmail });
-    let password = '';
-    
-    if (existingCustomer && existingCustomer.password) {
-      password = existingCustomer.password;
-    } else {
-      // Auto-generate a readable 8-character password
-      password = Math.random().toString(36).substring(2, 10).toUpperCase();
-    }
-
-    // Create or update Customer volume and password
     await Customer.findOneAndUpdate(
       { email: custEmail },
       { 
         $inc: { volume: 1 }, 
-        name: sData.customerName,
-        password: password
+        name: sData.customerName
       },
       { upsert: true, new: true }
     );
@@ -253,7 +268,7 @@ router.post('/shipments', async (req, res) => {
 });
 
 // 5. Update Live Simulation Controls (Play, Pause, Stop, Waypoints, Logs, Status, Package Image)
-router.put('/shipments/:id/simulation', async (req, res) => {
+router.put('/shipments/:id/simulation', requireAdmin, async (req, res) => {
   const { id } = req.params;
   const updates = req.body;
 
@@ -306,7 +321,7 @@ router.put('/shipments/:id/simulation', async (req, res) => {
 });
 
 // 6. Fetch Admin Statistics
-router.get('/stats', async (req, res) => {
+router.get('/stats', requireAdmin, async (req, res) => {
   try {
     const totalCustomers = await Customer.countDocuments();
     const totalShipments = await Shipment.countDocuments();
@@ -316,6 +331,7 @@ router.get('/stats', async (req, res) => {
     // Fetch lists
     const recentShipments = await Shipment.find().sort({ createdAt: -1 }).limit(10);
     const customers = await Customer.find().sort({ volume: -1 });
+    const safeCustomers = customers.map(c => { const o = typeof c.toObject === 'function' ? c.toObject() : { ...c }; delete o.password; return o; });
 
     res.json({
       metrics: {
@@ -325,7 +341,7 @@ router.get('/stats', async (req, res) => {
         delivered: delivered
       },
       recentShipments,
-      customers
+      customers: safeCustomers
     });
   } catch (error) {
     console.error('Error fetching statistics:', error);
@@ -334,7 +350,7 @@ router.get('/stats', async (req, res) => {
 });
 
 // 7. Delete Shipment (Admin Only)
-router.delete('/shipments/:id', async (req, res) => {
+router.delete('/shipments/:id', requireAdmin, async (req, res) => {
   const { id } = req.params;
   try {
     const deleted = await Shipment.findOneAndDelete({ id: id.toUpperCase() });
@@ -356,17 +372,7 @@ router.delete('/shipments/:id', async (req, res) => {
     }
     
     // Broadcast a deletion/update event via WebSocket
-    if (wssInstance) {
-      const message = JSON.stringify({
-        type: 'SHIPMENT_DELETED',
-        payload: { id: id.toUpperCase() }
-      });
-      wssInstance.clients.forEach(client => {
-        if (client.readyState === 1) {
-          client.send(message);
-        }
-      });
-    }
+    sendToClients('SHIPMENT_DELETED', { id: id.toUpperCase() }, { email: deleted.customerEmail, shipmentId: deleted.id });
 
     res.json({ success: true, message: 'Shipment deleted successfully.' });
   } catch (error) {
@@ -376,7 +382,7 @@ router.delete('/shipments/:id', async (req, res) => {
 });
 
 // 8. Admin Direct Email Dispatch Endpoint
-router.post('/admin/send-email', async (req, res) => {
+router.post('/admin/send-email', requireAdmin, async (req, res) => {
   const { toEmail, recipientName, subject, messageBody, templateType, shipmentId } = req.body;
 
   if (!toEmail || !toEmail.trim()) {
@@ -393,8 +399,6 @@ router.post('/admin/send-email', async (req, res) => {
     }
 
     const targetEmail = toEmail.trim().toLowerCase();
-    const customerUser = await Customer.findOne({ email: targetEmail });
-    const customerPass = customerUser?.password || 'txl123';
 
     const result = await sendEmail({
       to: targetEmail,
@@ -403,10 +407,7 @@ router.post('/admin/send-email', async (req, res) => {
       messageBody: messageBody,
       templateType: templateType,
       shipment: shipmentData,
-      credentials: {
-        email: targetEmail,
-        password: shipmentData ? shipmentData.id : customerPass
-      }
+      credentials: shipmentData ? { email: targetEmail, password: shipmentData.id } : undefined
     });
 
     res.json({
@@ -555,13 +556,7 @@ router.post('/inbound-email', async (req, res) => {
     await newMessage.save();
 
     // Broadcast over WebSocket
-    if (wssInstance) {
-      const msgObj = typeof newMessage.toObject === 'function' ? newMessage.toObject() : newMessage;
-      const wsMessage = JSON.stringify({ type: 'NEW_MESSAGE', payload: msgObj });
-      wssInstance.clients.forEach(c => {
-        if (c.readyState === 1) c.send(wsMessage);
-      });
-    }
+    sendToClients('NEW_MESSAGE', typeof newMessage.toObject === 'function' ? newMessage.toObject() : newMessage, { email: senderEmail });
 
     console.log(`[INBOUND EMAIL PROCESSED] Received message from ${senderEmail}`);
     return res.status(200).json({ success: true, id: newMessage._id });
@@ -572,8 +567,8 @@ router.post('/inbound-email', async (req, res) => {
 });
 
 // 10. Get Admin / Customer Messages (Email Messages only)
-router.get('/messages', async (req, res) => {
-  const { email } = req.query;
+router.get('/messages', requireUser, async (req, res) => {
+  const email = req.auth.role === 'admin' ? req.query.email : req.auth.email;
   try {
     let query = { channel: { $ne: 'insite' } };
     if (email) {
@@ -589,7 +584,7 @@ router.get('/messages', async (req, res) => {
 });
 
 // 11. Admin Reply to Customer Message (via Resend Email)
-router.post('/admin/messages/reply', async (req, res) => {
+router.post('/admin/messages/reply', requireAdmin, async (req, res) => {
   const { customerEmail, customerName, subject, body, inReplyTo } = req.body;
 
   if (!customerEmail || !customerEmail.trim()) {
@@ -638,13 +633,7 @@ router.post('/admin/messages/reply', async (req, res) => {
     }
 
     // 3. Broadcast WebSocket event
-    if (wssInstance) {
-      const msgObj = typeof adminMsg.toObject === 'function' ? adminMsg.toObject() : adminMsg;
-      const wsMessage = JSON.stringify({ type: 'NEW_MESSAGE', payload: msgObj });
-      wssInstance.clients.forEach(c => {
-        if (c.readyState === 1) c.send(wsMessage);
-      });
-    }
+    sendToClients('NEW_MESSAGE', typeof adminMsg.toObject === 'function' ? adminMsg.toObject() : adminMsg, { email: cleanEmail });
 
     res.json({
       success: true,
@@ -659,8 +648,8 @@ router.post('/admin/messages/reply', async (req, res) => {
 });
 
 // 12. Mark Customer Email Messages as Read
-router.put('/messages/read', async (req, res) => {
-  const { customerEmail } = req.body;
+router.put('/messages/read', requireUser, async (req, res) => {
+  const customerEmail = req.auth.role === 'admin' ? req.body.customerEmail : req.auth.email;
   if (!customerEmail) {
     return res.status(400).json({ error: 'Customer email required.' });
   }
@@ -682,8 +671,8 @@ router.put('/messages/read', async (req, res) => {
 // --- IN-SITE LIVE CHAT ENDPOINTS ---
 
 // 13. Get In-Site Messages (Dedicated In-Site Chat)
-router.get('/insite-messages', async (req, res) => {
-  const { email } = req.query;
+router.get('/insite-messages', requireUser, async (req, res) => {
+  const email = req.auth.role === 'admin' ? req.query.email : req.auth.email;
   try {
     let query = { channel: 'insite' };
     if (email) {
@@ -699,8 +688,11 @@ router.get('/insite-messages', async (req, res) => {
 });
 
 // 14. Send In-Site Message (Customer or Admin)
-router.post('/insite-messages/send', async (req, res) => {
-  const { customerEmail, customerName, body, sender } = req.body;
+router.post('/insite-messages/send', requireUser, async (req, res) => {
+  const isAdmin = req.auth.role === 'admin';
+  const { customerName, body } = req.body;
+  const customerEmail = isAdmin ? req.body.customerEmail : req.auth.email;
+  const sender = isAdmin ? 'admin' : 'customer';
 
   if (!customerEmail || !customerEmail.trim()) {
     return res.status(400).json({ error: 'Customer email is required.' });
@@ -727,13 +719,7 @@ router.post('/insite-messages/send', async (req, res) => {
     await newMsg.save();
 
     // Broadcast over WebSocket for instant live delivery
-    if (wssInstance) {
-      const msgObj = typeof newMsg.toObject === 'function' ? newMsg.toObject() : newMsg;
-      const wsMessage = JSON.stringify({ type: 'NEW_INSITE_MESSAGE', payload: msgObj });
-      wssInstance.clients.forEach(c => {
-        if (c.readyState === 1) c.send(wsMessage);
-      });
-    }
+    sendToClients('NEW_INSITE_MESSAGE', typeof newMsg.toObject === 'function' ? newMsg.toObject() : newMsg, { email: cleanEmail });
 
     res.status(201).json({ success: true, message: newMsg });
   } catch (error) {
@@ -743,8 +729,10 @@ router.post('/insite-messages/send', async (req, res) => {
 });
 
 // 15. Mark In-Site Messages as Read
-router.put('/insite-messages/read', async (req, res) => {
-  const { customerEmail, reader } = req.body;
+router.put('/insite-messages/read', requireUser, async (req, res) => {
+  const isAdmin = req.auth.role === 'admin';
+  const customerEmail = isAdmin ? req.body.customerEmail : req.auth.email;
+  const reader = isAdmin ? 'admin' : 'customer';
   if (!customerEmail) {
     return res.status(400).json({ error: 'Customer email required.' });
   }
@@ -758,15 +746,7 @@ router.put('/insite-messages/read', async (req, res) => {
       { $set: { read: true } }
     );
 
-    if (wssInstance) {
-      const wsMessage = JSON.stringify({
-        type: 'INSITE_MESSAGES_READ',
-        payload: { customerEmail: cleanEmail, reader: reader || 'admin' }
-      });
-      wssInstance.clients.forEach(c => {
-        if (c.readyState === 1) c.send(wsMessage);
-      });
-    }
+    sendToClients('INSITE_MESSAGES_READ', { customerEmail: cleanEmail, reader: reader || 'admin' }, { email: cleanEmail });
 
     res.json({ success: true, message: `Marked in-site messages for ${cleanEmail} as read.` });
   } catch (error) {

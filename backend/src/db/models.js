@@ -229,7 +229,6 @@ class MockCustomer {
     if (!this.name || !this.email) throw new Error('Customer validation failed: name and email required.');
     this.email = this.email.trim().toLowerCase();
     this.volume = this.volume || 0;
-    this.password = this.password || 'dhl123';
     this.createdAt = this.createdAt || new Date().toISOString();
     this.updatedAt = new Date().toISOString();
 
