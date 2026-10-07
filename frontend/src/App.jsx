@@ -443,7 +443,8 @@ async function geocodeWorld(query, signal) {
   return (data.features || []).map(f => {
     const p = f.properties || {};
     const [lng, lat] = f.geometry.coordinates;
-    const name = p.name || p.city || p.state || p.country || query;
+    const streetLine = [p.housenumber, p.street].filter(Boolean).join(' ');
+    const name = p.name || streetLine || p.city || p.state || p.country || query;
     const parts = [name, p.city && p.city !== name ? p.city : '', p.state, p.country].filter(Boolean);
     const label = [...new Set(parts)].join(', ');
     return { name, stateName: p.state || p.city || '', country: p.country || '', coords: [lat, lng], label };
@@ -524,11 +525,11 @@ function searchHubs(query, limit = 8) {
 }
 
 // Type-to-search place box: suggests matching hubs and any place in the world, and hands the pick back
-function PlaceSearchInput({ value, onTextChange, onPick, onPickPlace, placeholder }) {
+function PlaceSearchInput({ value, onTextChange, onPick, onPickPlace, placeholder, worldOnly = false }) {
   const [open, setOpen] = useState(false);
   const [world, setWorld] = useState([]);
   const [worldState, setWorldState] = useState('idle'); // idle | loading | error | done
-  const matches = open ? searchHubs(value) : [];
+  const matches = (open && !worldOnly) ? searchHubs(value) : [];
 
   // Look the typed text up worldwide once typing pauses
   useEffect(() => {
@@ -601,7 +602,7 @@ function PlaceSearchInput({ value, onTextChange, onPick, onPickPlace, placeholde
             );
           })}
 
-          <div style={headStyle}>Anywhere in the world</div>
+          <div style={headStyle}>{worldOnly ? 'Matching addresses' : 'Anywhere in the world'}</div>
           {worldState === 'loading' && <div style={{ ...rowStyle, cursor: 'default', color: '#64748B' }}>Searching the world…</div>}
           {worldState === 'error' && <div style={{ ...rowStyle, cursor: 'default', color: '#B91C1C' }}>World search is unavailable right now.</div>}
           {worldState === 'done' && world.length === 0 && <div style={{ ...rowStyle, cursor: 'default', color: '#64748B' }}>No place found. Check the spelling.</div>}
@@ -645,6 +646,34 @@ function getInterpolatedPosition(waypoints, progressPercentage) {
   return [lat, lng];
 }
 
+// Small street-level map used in the admin form to confirm the delivery address
+const StreetPreviewMap = ({ point }) => {
+  const containerRef = useRef(null);
+  const mapRef = useRef(null);
+  const markerRef = useRef(null);
+
+  useEffect(() => {
+    if (!containerRef.current || !point) return undefined;
+    if (!mapRef.current) {
+      mapRef.current = L.map(containerRef.current, { zoomControl: true }).setView(point.coords, 17);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap contributors' }).addTo(mapRef.current);
+    } else {
+      mapRef.current.setView(point.coords, 17);
+    }
+    if (markerRef.current) mapRef.current.removeLayer(markerRef.current);
+    markerRef.current = L.marker(point.coords).addTo(mapRef.current).bindPopup(point.label || 'Delivery address');
+    setTimeout(() => mapRef.current && mapRef.current.invalidateSize(), 150);
+    return undefined;
+  }, [point]);
+
+  useEffect(() => () => {
+    if (mapRef.current) { mapRef.current.remove(); mapRef.current = null; }
+  }, []);
+
+  if (!point) return null;
+  return <div ref={containerRef} style={{ height: '220px', width: '100%', borderRadius: '8px', border: '1px solid #CBD5E1', marginTop: '10px', overflow: 'hidden' }}></div>;
+};
+
 // Subcomponents: Interactive Leaflet Map Viewer
 const LeafletMap = ({ shipment, height = '350px' }) => {
   const mapContainerRef = useRef(null);
@@ -652,6 +681,7 @@ const LeafletMap = ({ shipment, height = '350px' }) => {
   const routeLineRef = useRef(null);
   const vehicleMarkerRef = useRef(null);
   const markersRef = useRef([]);
+  const deliveryLayersRef = useRef([]);
 
   useEffect(() => {
     if (!mapContainerRef.current) return;
@@ -793,9 +823,49 @@ const LeafletMap = ({ shipment, height = '350px' }) => {
 
   }, [shipment, shipment.simulation.currentProgress, shipment.simulation.waypoints]);
 
+  // Delivery address pin + the real road route for the last stretch (drawn once per address)
+  const deliveryPoint = shipment.deliveryPoint && Array.isArray(shipment.deliveryPoint.coords) ? shipment.deliveryPoint : null;
+  const deliveryKey = deliveryPoint ? `${deliveryPoint.coords[0]},${deliveryPoint.coords[1]}|${(shipment.simulation.waypoints || []).slice(-1)[0]}` : '';
+
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!map) return undefined;
+    deliveryLayersRef.current.forEach(l => map.removeLayer(l));
+    deliveryLayersRef.current = [];
+    if (!deliveryPoint) return undefined;
+
+    const pin = L.marker(deliveryPoint.coords).addTo(map)
+      .bindPopup(`<b>Delivery address</b><br/>${shipment.address || deliveryPoint.label || ''}`);
+    deliveryLayersRef.current.push(pin);
+
+    const lastHub = GPS_COORDINATES[(shipment.simulation.waypoints || []).slice(-1)[0]];
+    let cancelled = false;
+    if (lastHub) {
+      const url = `https://router.project-osrm.org/route/v1/driving/${lastHub[1]},${lastHub[0]};${deliveryPoint.coords[1]},${deliveryPoint.coords[0]}?overview=full&geometries=geojson`;
+      fetch(url)
+        .then(r => r.json())
+        .then(data => {
+          if (cancelled || !data.routes || !data.routes[0] || !mapInstanceRef.current) return;
+          const line = L.geoJSON(data.routes[0].geometry, { style: { color: '#0F172A', weight: 4, opacity: 0.85 } }).addTo(mapInstanceRef.current);
+          deliveryLayersRef.current.push(line);
+        })
+        .catch(() => {});
+    }
+    return () => { cancelled = true; };
+  }, [deliveryKey]);
+
   return (
-    <div className="leaflet-map-outer-wrapper" style={{ height: height, width: '100%', borderRadius: height === '100%' ? '0px' : '12px', border: height === '100%' ? 'none' : '1px solid var(--border-color)', overflow: 'hidden', display: 'flex', flex: 1 }}>
+    <div className="leaflet-map-outer-wrapper" style={{ position: 'relative', height: height, width: '100%', borderRadius: height === '100%' ? '0px' : '12px', border: height === '100%' ? 'none' : '1px solid var(--border-color)', overflow: 'hidden', display: 'flex', flex: 1 }}>
       <div ref={mapContainerRef} style={{ height: '100%', width: '100%', flex: 1 }}></div>
+      {deliveryPoint && (
+        <button
+          type="button"
+          onClick={() => mapInstanceRef.current && mapInstanceRef.current.setView(deliveryPoint.coords, 17)}
+          style={{ position: 'absolute', top: '12px', right: '12px', zIndex: 1000, background: '#0F172A', color: '#ffffff', border: 'none', borderRadius: '6px', padding: '8px 14px', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', boxShadow: '0 2px 8px rgba(0,0,0,0.25)' }}
+        >
+          Street view of delivery address
+        </button>
+      )}
     </div>
   );
 };
@@ -2341,6 +2411,7 @@ export default function App() {
   const [formCountryCode, setFormCountryCode] = useState('+1');
   const [formCustomerPhone, setFormCustomerPhone] = useState('');
   const [formAddress, setFormAddress] = useState('');
+  const [formDeliveryPoint, setFormDeliveryPoint] = useState(null);
   const [formUploadedImage, setFormUploadedImage] = useState(null);
   const [formWeight, setFormWeight] = useState('');
   const [formDesc, setFormDesc] = useState('');
@@ -2652,6 +2723,7 @@ export default function App() {
       customerEmail: formCustomerEmail,
       customerPhone: formCustomerPhone ? `${formCountryCode} ${formCustomerPhone}`.trim() : '+1 555 0100',
       address: formAddress || 'Warehouse facility D',
+      deliveryPoint: formDeliveryPoint,
       weight: parseFloat(formWeight) || 500,
       desc: formDesc || 'Commercial freight cargo items',
       vessel: formVessel,
@@ -2692,6 +2764,7 @@ export default function App() {
         setFormCountryCode('+1');
         setFormCustomerPhone('');
         setFormAddress('');
+        setFormDeliveryPoint(null);
         setFormUploadedImage(null);
         setFormWeight('');
         setFormDesc('');
@@ -4892,6 +4965,7 @@ export default function App() {
                             setFormCustomerEmail('');
                             setFormCustomerPhone('');
                             setFormAddress('');
+                            setFormDeliveryPoint(null);
                             setFormWeight('');
                             setFormDesc('');
                             setFormVessel('Truck');
@@ -4969,12 +5043,21 @@ export default function App() {
                             </div>
                             <div className="input-field">
                               <label>FULL ADDRESS</label>
-                              <input 
-                                type="text" 
-                                placeholder=""
+                              <PlaceSearchInput
+                                worldOnly
+                                placeholder="Type the street address, e.g. 23 Armada Close, Basildon"
                                 value={formAddress}
-                                onChange={(e) => setFormAddress(e.target.value)}
+                                onTextChange={(text) => { setFormAddress(text); setFormDeliveryPoint(null); }}
+                                onPickPlace={(place) => setFormDeliveryPoint({ label: place.label, coords: place.coords })}
                               />
+                              {formDeliveryPoint && (
+                                <>
+                                  <span style={{ display: 'block', marginTop: '6px', fontSize: '0.75rem', color: '#15803D' }}>
+                                    Map pin set: {formDeliveryPoint.label}
+                                  </span>
+                                  <StreetPreviewMap point={formDeliveryPoint} />
+                                </>
+                              )}
                             </div>
                           </div>
                         </div>

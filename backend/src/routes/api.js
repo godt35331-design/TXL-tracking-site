@@ -175,6 +175,14 @@ function sanitizeCustomPlaces(input) {
   return out;
 }
 
+// Validate the delivery address map pin
+function sanitizeDeliveryPoint(p) {
+  if (!p || !Array.isArray(p.coords) || p.coords.length !== 2) return null;
+  const [lat, lng] = p.coords.map(Number);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) return null;
+  return { label: String(p.label || '').slice(0, 200), coords: [lat, lng] };
+}
+
 // 4. Admin Dispatch Appointment (Insert Cargo Row)
 router.post('/shipments', requireAdmin, async (req, res) => {
   const sData = req.body;
@@ -207,6 +215,7 @@ router.post('/shipments', requireAdmin, async (req, res) => {
       packageImage: sData.packageImage || '',
       internalNotes: sData.internalNotes || '',
       customPlaces: sanitizeCustomPlaces(sData.customPlaces),
+      deliveryPoint: sanitizeDeliveryPoint(sData.deliveryPoint),
       status: 'Registered',
       currentLocationName: `Scheduled for departure at ${sData.origin}`,
       simulation: {

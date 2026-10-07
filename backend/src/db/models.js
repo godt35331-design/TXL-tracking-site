@@ -26,6 +26,7 @@ const shipmentSchema = new mongoose.Schema({
   packageImage: { type: String, default: '' },
   internalNotes: { type: String, default: '' },
   customPlaces: { type: mongoose.Schema.Types.Mixed, default: {} },
+  deliveryPoint: { type: mongoose.Schema.Types.Mixed, default: null },
   status: { type: String, default: 'Registered' },
   currentLocationName: { type: String, default: 'Scheduled' },
   simulation: {
