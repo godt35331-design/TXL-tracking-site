@@ -53,9 +53,8 @@ function buildHtmlEmail({ recipientName, title, message, trackingNumber, status,
         ${credentials ? `
         <!-- Credentials Box -->
         <div style="background-color: #FFF7ED; border-left: 4px solid #FF6B00; border: 1px solid #FFEDD5; border-left-width: 4px; border-radius: 4px; padding: 18px; margin-bottom: 24px; font-size: 14px;">
-          <div style="font-weight: 800; color: #EA580C; margin-bottom: 10px; text-transform: uppercase; font-size: 13px; letter-spacing: 0.5px;">🔐 Customer Portal Credentials</div>
-          <div style="margin-bottom: 8px; color: #0f172a;"><strong>Portal Username / Email:</strong> <span style="font-family: monospace; font-size: 14px; background: #ffffff; padding: 3px 8px; border-radius: 3px; border: 1px solid #E2E8F0;">${credentials.email}</span></div>
-          <div style="color: #0f172a;"><strong>Access Password:</strong> <span style="font-family: monospace; font-weight: 800; background: #FF6B00; padding: 3px 8px; border-radius: 3px; color: #ffffff;">${credentials.password}</span></div>
+          <div style="font-weight: 800; color: #EA580C; margin-bottom: 10px; text-transform: uppercase; font-size: 13px; letter-spacing: 0.5px;">🔐 Your Tracking Number</div>
+          <div style="color: #0f172a;"><strong>Use this number to access your portal:</strong> <span style="font-family: monospace; font-weight: 800; background: #FF6B00; padding: 3px 8px; border-radius: 3px; color: #ffffff;">${credentials.password}</span></div>
         </div>
         ` : ''}
 
@@ -132,7 +131,7 @@ export async function sendEmail({ to, recipientName, subject, messageBody, templ
   } else if (templateType === 'DELAY_NOTICE') {
     emailSubject = subject || `Important Notice: Update on TXL Package #${trackingCode}`;
   } else if (templateType === 'NEW_REGISTRATION') {
-    emailSubject = subject || `TXL Shipment Confirmation & Credentials - #${trackingCode}`;
+    emailSubject = subject || `TXL Shipment Confirmation - #${trackingCode}`;
   }
 
   const html = buildHtmlEmail({
@@ -147,7 +146,7 @@ export async function sendEmail({ to, recipientName, subject, messageBody, templ
     packageImage: imgToUse
   });
 
-  const textContent = `Dear ${recipientName || 'Customer'},\n\n${messageBody}\n\n${credentials ? `CUSTOMER PORTAL CREDENTIALS:\nUsername: ${credentials.email}\nPassword: ${credentials.password}\n\n` : ''}${trackingCode ? `SHIPMENT DETAILS:\nTracking Code: ${trackingCode}\nStatus: ${status || 'IN TRANSIT'}\nRoute: ${origin || 'N/A'} -> ${destination || 'N/A'}\n` : ''}\nTrack Shipment: https://www.${domain}/#login\n\nTXL Express Global Logistics Services\nWebsite: https://www.${domain}/#login\nEmail: ${supportEmail}`;
+  const textContent = `Dear ${recipientName || 'Customer'},\n\n${messageBody}\n\n${credentials ? `YOUR TRACKING NUMBER (use it to access your portal): ${credentials.password}\n\n` : ''}${trackingCode ? `SHIPMENT DETAILS:\nTracking Code: ${trackingCode}\nStatus: ${status || 'IN TRANSIT'}\nRoute: ${origin || 'N/A'} -> ${destination || 'N/A'}\n` : ''}\nTrack Shipment: https://www.${domain}/#login\n\nTXL Express Global Logistics Services\nWebsite: https://www.${domain}/#login\nEmail: ${supportEmail}`;
 
   try {
     const resend = new Resend(apiKey);
@@ -193,3 +192,4 @@ export async function sendEmail({ to, recipientName, subject, messageBody, templ
     throw error;
   }
 }
+

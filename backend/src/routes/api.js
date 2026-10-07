@@ -27,47 +27,32 @@ export function broadcastShipmentUpdate(shipment) {
 
 // 1. Authentication Router API
 router.post('/auth/login', async (req, res) => {
-  const { email, password } = req.body;
-  
-  if (!email) {
-    return res.status(400).json({ error: 'Email address is required.' });
-  }
+  const { trackingId } = req.body;
 
-  const cleanEmail = email.trim().toLowerCase();
-  const configuredAdminEmail = (process.env.ADMIN_EMAIL || 'admin@txlglobaltracking.com').trim().toLowerCase();
-
-  try {
-    if (cleanEmail === configuredAdminEmail || cleanEmail === 'admin@txlglobaltracking.com' || cleanEmail === 'admin@dhl.com') {
-      const adminPass = process.env.ADMIN_PASSWORD || 'admin123';
-      if (password !== adminPass) {
-        return res.status(401).json({ error: 'Invalid password credentials for Administrator.' });
-      }
-      return res.json({
-        email: cleanEmail,
-        name: 'TXL System Administrator',
-        role: 'admin'
-      });
+  // Customer portal access using only a tracking number
+  if (trackingId) {
+    const cleanTracking = String(trackingId).trim().toUpperCase();
+    const adminTracking = (process.env.ADMIN_TRACKING_ID || 'ADM-K7Q2-X9PL-4M').trim().toUpperCase();
+    if (cleanTracking === adminTracking) {
+      return res.json({ email: (process.env.ADMIN_EMAIL || 'admin@txlglobaltracking.com').trim().toLowerCase(), name: 'TXL System Administrator', role: 'admin' });
     }
-
-    // Lookup customer in MongoDB
-    const customer = await Customer.findOne({ email: cleanEmail });
-    if (customer) {
-      const customerPass = customer.password || 'txl123';
-      if (password !== customerPass) {
-        return res.status(401).json({ error: 'Invalid password credentials for Customer.' });
+    try {
+      const shipment = await Shipment.findOne({ id: String(trackingId).trim().toUpperCase() });
+      if (!shipment) {
+        return res.status(404).json({ error: 'Tracking number not found. Please check and try again.' });
       }
       return res.json({
-        email: customer.email,
-        name: customer.name,
+        email: (shipment.customerEmail || '').trim().toLowerCase(),
+        name: shipment.customerName,
         role: 'customer'
       });
+    } catch (error) {
+      console.error('Error logging in by tracking number:', error);
+      return res.status(500).json({ error: 'Server authentication crash.' });
     }
-
-    return res.status(401).json({ error: 'Unauthorized credentials.' });
-  } catch (error) {
-    console.error('Error logging in:', error);
-    res.status(500).json({ error: 'Server authentication crash.' });
   }
+
+  return res.status(400).json({ error: 'Tracking number is required.' });
 });
 
 // 2. Fetch Customer Shipments / Admin Directories
@@ -216,7 +201,7 @@ router.post('/shipments', async (req, res) => {
     const responsePayload = typeof newShipment.toObject === 'function' ? newShipment.toObject() : JSON.parse(JSON.stringify(newShipment));
     responsePayload.credentials = {
       email: custEmail,
-      password: password,
+      password: newShipment.id,
       trackingId: newShipment.id,
       packageImage: newShipment.packageImage || ''
     };
@@ -226,8 +211,8 @@ router.post('/shipments', async (req, res) => {
       const regMsg = new Message({
         customerEmail: custEmail,
         customerName: sData.customerName,
-        subject: `TXL Shipment Confirmation & Credentials - #${newShipment.id}`,
-        body: `Welcome to TXL Express Global Logistics.\n\nYour shipping appointment has been registered.\nTracking Number: #${newShipment.id}\nOrigin: ${newShipment.origin}\nDestination: ${newShipment.destination}\nStatus: Registered\n\nCustomer Portal Login:\nUsername: ${custEmail}\nPassword: ${password}`,
+        subject: `TXL Shipment Confirmation - #${newShipment.id}`,
+        body: `Welcome to TXL Express Global Logistics.\n\nYour shipping appointment has been registered.\nTracking Number: #${newShipment.id}\nOrigin: ${newShipment.origin}\nDestination: ${newShipment.destination}\nStatus: Registered\n\nUse your tracking number to access your portal: ${newShipment.id}`,
         sender: 'admin',
         channel: 'email',
         read: true
@@ -239,19 +224,19 @@ router.post('/shipments', async (req, res) => {
 
     // Automatically send registration & credentials email to customer
     try {
-      const welcomeMessage = `Your shipping appointment has been successfully registered with TXL Express Global Logistics.\n\nBelow are your Customer Portal login credentials to monitor your package live telemetry, along with your shipment overview.`;
+      const welcomeMessage = `Your shipping appointment has been successfully registered with TXL Express Global Logistics.\n\nUse your tracking number below to access your Customer Portal and monitor your package live telemetry, along with your shipment overview.`;
 
       sendEmail({
         to: custEmail,
         recipientName: sData.customerName,
-        subject: `TXL Shipment Confirmation & Credentials - #${newShipment.id}`,
+        subject: `TXL Shipment Confirmation - #${newShipment.id}`,
         messageBody: welcomeMessage,
         templateType: 'NEW_REGISTRATION',
         shipment: newShipment,
         packageImage: sData.packageImage || newShipment.packageImage || '',
         credentials: {
           email: custEmail,
-          password: password
+          password: newShipment.id
         }
       }).catch(emailErr => {
         console.error('[AUTO EMAIL ERROR] Registration email failed to dispatch:', emailErr);
@@ -420,7 +405,7 @@ router.post('/admin/send-email', async (req, res) => {
       shipment: shipmentData,
       credentials: {
         email: targetEmail,
-        password: customerPass
+        password: shipmentData ? shipmentData.id : customerPass
       }
     });
 
@@ -791,3 +776,4 @@ router.put('/insite-messages/read', async (req, res) => {
 });
 
 export default router;
+

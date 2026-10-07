@@ -2064,6 +2064,7 @@ export default function App() {
   // Login Form States
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
+  const [loginTrackingId, setLoginTrackingId] = useState('');
   const [loginError, setLoginError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loggingIn, setLoggingIn] = useState(false);
@@ -2328,14 +2329,14 @@ export default function App() {
   const handleLogin = async (e) => {
     e.preventDefault();
     setLoginError('');
-    if (!loginEmail) return;
+    if (!loginTrackingId.trim()) return;
 
     try {
       setLoggingIn(true);
       const res = await fetch(`${API_BASE}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: loginEmail, password: loginPassword })
+        body: JSON.stringify({ trackingId: loginTrackingId.trim() })
       });
       const data = await res.json();
 
@@ -3013,9 +3014,6 @@ export default function App() {
               <span className="portal-title">Express Logistics</span>
             </div>
 
-            <div className="header-ctrls-right">
-              <a href="#login" className="header-login-link">Login</a>
-            </div>
           </header>
         )
       )}
@@ -3165,19 +3163,7 @@ export default function App() {
                   
                   <div className="hero-action-buttons">
                     <button className="btn-hero-primary" onClick={() => triggerNavigationWithFlash('#login')}>
-                      Login to Portal
-                    </button>
-                    <button 
-                      className="btn-hero-secondary" 
-                      onClick={() => {
-                        setVisitorTrackInput('');
-                        setVisitorTrackError('');
-                        setVisitorTrackResult(null);
-                        setShowVisitorTrackModal(true);
-                      }}
-                    >
-                      <svg className="btn-hero-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M9 17a2 2 0 11-4 0 2 2 0 014 0zM19 17a2 2 0 11-4 0 2 2 0 014 0z" /><path strokeLinecap="round" strokeLinejoin="round" d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10h10z" /><path strokeLinecap="round" strokeLinejoin="round" d="M13 8h7a1 1 0 011 1v3H13V8z" /><path strokeLinecap="round" strokeLinejoin="round" d="M19 12h2a1 1 0 011 1v3h-3v-4z" /></svg>
-                      Track Shipment
+                      Track Your Shipment
                     </button>
                   </div>
 
@@ -3234,7 +3220,6 @@ export default function App() {
                     </div>
                     <h3>Shipment Tracking</h3>
                     <p>Get instantaneous updates on your package location with centimeter-level precision.</p>
-                    <a href="#login">Learn More →</a>
                   </div>
 
                   <div className="solution-card-mock">
@@ -3243,7 +3228,6 @@ export default function App() {
                     </div>
                     <h3>Live Monitoring</h3>
                     <p>24/7 telemetry and environmental monitoring for sensitive or high-value cargo.</p>
-                    <a href="#login">View Dashboard →</a>
                   </div>
 
                   <div className="solution-card-mock">
@@ -3252,7 +3236,6 @@ export default function App() {
                     </div>
                     <h3>Fast & Secure</h3>
                     <p>Redundant security protocols and expedited handling for priority shipments.</p>
-                    <a href="#login">Security Protocol →</a>
                   </div>
 
                   <div className="solution-card-mock">
@@ -3261,7 +3244,6 @@ export default function App() {
                     </div>
                     <h3>Logistics Solutions</h3>
                     <p>Custom enterprise workflows and API integrations for seamless operations.</p>
-                    <a href="#login">Enterprise API →</a>
                   </div>
                 </div>
               </div>
@@ -3273,10 +3255,6 @@ export default function App() {
                     <h2>A Streamlined Journey</h2>
                     <p>From the moment your package enters our system to the final doorstep delivery, we provide transparency at every milestone.</p>
                   </div>
-                  <a href="#login" className="ticks-nav-manual">
-                    <svg style={{width:'16px', height:'16px'}} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                    Detailed Process Guide
-                  </a>
                 </div>
 
                 <div className="journey-sequence-row">
@@ -3467,7 +3445,7 @@ export default function App() {
                   </div>
                   <div className="faq-card">
                     <h4 className="faq-question">Where do I get my Customer Portal login credentials?</h4>
-                    <p className="faq-answer">When our logistics team creates a shipping appointment for you, an automated welcome email containing your username and password is sent to your inbox immediately.</p>
+                    <p className="faq-answer">When our logistics team creates a shipping appointment for you, an automated welcome email containing your portal password (your tracking number) is sent to your inbox immediately.</p>
                   </div>
                   <div className="faq-card">
                     <h4 className="faq-question">How fast are shipping appointments registered?</h4>
@@ -3485,10 +3463,6 @@ export default function App() {
                 <div className="cta-banner-card">
                   <h2>Ready to Optimize Your Logistics?</h2>
                   <p>Join thousands of enterprises using TXL Express Logistics Portal to scale their delivery operations efficiently.</p>
-                  <div className="cta-action-row">
-                    <button className="btn-cta-black" onClick={() => window.location.hash = '#login'}>Create Business Account</button>
-                    <button className="btn-cta-outline" onClick={() => window.location.hash = '#login'}>Contact Sales Expert</button>
-                  </div>
                 </div>
               </div>
 
@@ -3569,71 +3543,37 @@ export default function App() {
                 <div className="login-shield-badge">TXL</div>
 
                 <h2 className="login-brand-title">Logistics Portal</h2>
-                <p className="login-brand-tagline">Manage your global fleet and shipments</p>
+                <p className="login-brand-tagline">Enter your tracking number to access your portal</p>
 
                 <div className="login-card-custom">
                   {loginError && <div className="error-banner" style={{marginBottom:'20px'}}>{loginError}</div>}
                   
                   <form onSubmit={handleLogin}>
                     <div className="login-form-label-row">
-                      <label>Email Address</label>
+                      <label>Tracking Number</label>
                     </div>
                     <div className="login-input-wrapper">
-                      <Mail className="login-input-icon-left" />
-                      <input 
-                        type="email" 
-                        placeholder="name@company.com"
-                        value={loginEmail}
-                        onChange={(e) => setLoginEmail(e.target.value)}
+                      <Package className="login-input-icon-left" />
+                      <input
+                        type="text"
+                        placeholder="Enter your tracking number"
+                        value={loginTrackingId}
+                        onChange={(e) => setLoginTrackingId(e.target.value)}
                         required
+                        autoFocus
                       />
                     </div>
-
-                    <div className="login-form-label-row">
-                      <label>Password</label>
-                      <a href="#login" className="login-forgot-link" onClick={(e) => { e.preventDefault(); alert("Verification code reset links have been dispatched to registered emails."); }}>Forgot Password?</a>
-                    </div>
-                    <div className="login-input-wrapper">
-                      <Lock className="login-input-icon-left" />
-                      <input 
-                        type={showPassword ? 'text' : 'password'} 
-                        placeholder="••••••••" 
-                        value={loginPassword}
-                        onChange={(e) => setLoginPassword(e.target.value)}
-                        required
-                      />
-                      <button 
-                        type="button" 
-                        className="login-input-icon-right-btn" 
-                        onClick={() => setShowPassword(!showPassword)}
-                      >
-                        {showPassword ? <EyeOff className="login-icon-size" /> : <Eye className="login-icon-size" />}
-                      </button>
-                    </div>
-
-                    <div className="login-remember-row">
-                      <input type="checkbox" id="rememberDevice" defaultChecked />
-                      <label htmlFor="rememberDevice">Remember this device</label>
-                    </div>
-
                     <button type="submit" className="btn-login-submit-gold" disabled={loggingIn}>
                       {loggingIn ? (
                         <>
                           <span className="btn-spinner" aria-label="Signing in"></span>
-                          <span>Signing in…</span>
+                          <span>Checking…</span>
                         </>
                       ) : (
-                        <>Login <ArrowRight className="btn-arrow" /></>
+                        <>Track <ArrowRight className="btn-arrow" /></>
                       )}
                     </button>
                   </form>
-
-                  <div className="login-divider-line"></div>
-
-                  <div className="login-new-label">New to the enterprise portal?</div>
-                  <button className="btn-login-outline-access" onClick={() => handleRoleBypass('customer')}>
-                    Request Portal Access
-                  </button>
                 </div>
 
                 <div className="login-page-subfooter">
@@ -5753,23 +5693,6 @@ export default function App() {
                   </button>
                 </div>
               </div>
-              
-              <div>
-                <label style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>Auto-Generated Password</label>
-                <div style={{ display: 'flex', background: 'var(--bg-secondary, #1b1613)', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '8px 12px', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontFamily: 'monospace', fontWeight: 'bold', color: '#0F172A' }}>{credentialsModal.password}</span>
-                  <button 
-                    type="button" 
-                    onClick={() => {
-                      navigator.clipboard.writeText(credentialsModal.password);
-                      alert("Password copied!");
-                    }} 
-                    style={{ background: 'none', border: 'none', color: '#0F172A', cursor: 'pointer', fontSize: '0.85rem' }}
-                  >
-                    Copy
-                  </button>
-                </div>
-              </div>
             </div>
 
             {credentialsModal.packageImage && (
@@ -6221,3 +6144,4 @@ export default function App() {
     </div>
   );
 }
+
