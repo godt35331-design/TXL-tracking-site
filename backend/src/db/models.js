@@ -25,6 +25,7 @@ const shipmentSchema = new mongoose.Schema({
   eta: { type: String, required: true },
   packageImage: { type: String, default: '' },
   internalNotes: { type: String, default: '' },
+  customPlaces: { type: mongoose.Schema.Types.Mixed, default: {} },
   status: { type: String, default: 'Registered' },
   currentLocationName: { type: String, default: 'Scheduled' },
   simulation: {

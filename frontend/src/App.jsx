@@ -241,7 +241,8 @@ const renderCategorizedHubOptions = (excludeList = []) => {
     { key: 'US-Midwest', label: '🇺🇸 United States — Midwest & Great Lakes States' },
     { key: 'US-Northeast', label: '🇺🇸 United States — Northeast & Mid-Atlantic States' },
     { key: 'US-West', label: '🇺🇸 United States — West & Pacific States' },
-    { key: 'Global', label: '🌐 Global — Intercontinental Air & Ocean Hubs' }
+    { key: 'Global', label: '🌐 Global — Intercontinental Air & Ocean Hubs' },
+    { key: 'Custom', label: '📍 Custom Locations (searched worldwide)' }
   ];
 
   return categories.map(cat => {
@@ -273,6 +274,7 @@ function calculateSmartRoute(startCode, endCode, hubs = GLOBAL_LOGISTICS_HUBS) {
   const start = hubs[startCode];
   const end = hubs[endCode];
   if (!start || !end) return `${startCode}-${endCode}`;
+  if (start.custom || end.custom) return calculateCustomRoute(startCode, endCode);
 
   const c1 = start.coords;
   const c2 = end.coords;
@@ -377,6 +379,248 @@ function calculateSmartRoute(startCode, endCode, hubs = GLOBAL_LOGISTICS_HUBS) {
   return route.join('-');
 }
 
+// ---------- Worldwide places (any city or address, not just the built-in hubs) ----------
+const haversineKm = (a, b) => {
+  const toRad = (d) => (d * Math.PI) / 180;
+  const dLat = toRad(b[0] - a[0]);
+  const dLng = toRad(b[1] - a[1]);
+  const x = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(a[0])) * Math.cos(toRad(b[0])) * Math.sin(dLng / 2) ** 2;
+  return 2 * 6371 * Math.asin(Math.sqrt(x));
+};
+
+// Great-circle midpoint of two [lat, lng] points
+const greatCircleMidpoint = (a, b) => {
+  const toRad = (d) => (d * Math.PI) / 180;
+  const toDeg = (r) => (r * 180) / Math.PI;
+  const [lat1, lng1, lat2, lng2] = [toRad(a[0]), toRad(a[1]), toRad(b[0]), toRad(b[1])];
+  const bx = Math.cos(lat2) * Math.cos(lng2 - lng1);
+  const by = Math.cos(lat2) * Math.sin(lng2 - lng1);
+  const lat = Math.atan2(Math.sin(lat1) + Math.sin(lat2), Math.sqrt((Math.cos(lat1) + bx) ** 2 + by ** 2));
+  const lng = lng1 + Math.atan2(by, Math.cos(lat1) + bx);
+  return [toDeg(lat), toDeg(lng)];
+};
+
+// Make a waypoint code (letters/digits only, no dashes) for a place that is not in the hub list
+const makeCustomCode = (name, lat, lng) => {
+  const letters = (name || 'LOC').toUpperCase().replace(/[^A-Z]/g, '').padEnd(3, 'X').slice(0, 3);
+  let n = Math.abs(Math.round(lat * 10 + lng * 10)) % 10;
+  let code = `X${letters}${n}`;
+  while (GPS_COORDINATES[code] && GLOBAL_LOGISTICS_HUBS[code] && !GLOBAL_LOGISTICS_HUBS[code].custom) {
+    n = (n + 1) % 10;
+    code = `X${letters}${n}`;
+  }
+  return code;
+};
+
+// Make a custom place known to the map, routing and hub lookups
+const registerCustomPlace = (code, place) => {
+  if (!code || !place || !Array.isArray(place.coords) || place.coords.length !== 2) return;
+  GLOBAL_LOGISTICS_HUBS[code] = {
+    name: place.name || code,
+    stateName: place.stateName || '',
+    country: place.country || '',
+    region: 'Custom',
+    coords: place.coords,
+    hub: code,
+    flag: '📍',
+    type: 'Custom Location',
+    custom: true
+  };
+  GPS_COORDINATES[code] = place.coords;
+};
+
+const registerCustomPlaces = (places) => {
+  if (!places || typeof places !== 'object') return;
+  Object.entries(places).forEach(([code, place]) => registerCustomPlace(code, place));
+};
+
+// World-wide place lookup (OpenStreetMap data via Photon): handles partial and misspelled names
+async function geocodeWorld(query, signal) {
+  const res = await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&limit=6`, { signal });
+  if (!res.ok) throw new Error('Place search unavailable');
+  const data = await res.json();
+  const seen = new Set();
+  return (data.features || []).map(f => {
+    const p = f.properties || {};
+    const [lng, lat] = f.geometry.coordinates;
+    const name = p.name || p.city || p.state || p.country || query;
+    const parts = [name, p.city && p.city !== name ? p.city : '', p.state, p.country].filter(Boolean);
+    const label = [...new Set(parts)].join(', ');
+    return { name, stateName: p.state || p.city || '', country: p.country || '', coords: [lat, lng], label };
+  }).filter(r => {
+    if (seen.has(r.label)) return false;
+    seen.add(r.label);
+    return true;
+  });
+}
+
+// Route between places when at least one is a custom location: depart via the nearest big gateway,
+// cross the long haul via a mid-way gateway, arrive via the gateway nearest the destination
+function calculateCustomRoute(startCode, endCode) {
+  const start = GLOBAL_LOGISTICS_HUBS[startCode];
+  const end = GLOBAL_LOGISTICS_HUBS[endCode];
+  const total = haversineKm(start.coords, end.coords);
+  if (total < 150) return `${startCode}-${endCode}`;
+
+  const majorCodes = new Set(['LHR', 'JFK', 'ORD', 'LAX', 'ATL', 'MIA', 'DFW', 'MEM', 'SDF', 'CVG', 'DEN', 'SEA', 'EMA', 'MAN']);
+  const gateways = Object.entries(GLOBAL_LOGISTICS_HUBS).filter(([code, h]) =>
+    !h.custom && (h.region === 'Global' || majorCodes.has(code) || /superhub/i.test(h.type || ''))
+  );
+
+  const nearestTo = (point) => {
+    let best = null;
+    for (const [code, h] of gateways) {
+      if (code === startCode || code === endCode) continue;
+      const d = haversineKm(point, h.coords);
+      if (!best || d < best.d) best = { code, d, coords: h.coords };
+    }
+    return best;
+  };
+
+  const picks = [];
+  const consider = (g, maxOffKm) => {
+    if (!g || g.d > maxOffKm) return;
+    // Must make progress: not behind the start and not past the destination
+    if (haversineKm(start.coords, g.coords) >= total || haversineKm(g.coords, end.coords) >= total) return;
+    if (picks.some(p => p.code === g.code)) return;
+    picks.push(g);
+  };
+
+  consider(nearestTo(start.coords), total * 0.5);
+  if (total > 4000) consider(nearestTo(greatCircleMidpoint(start.coords, end.coords)), total * 0.2);
+  consider(nearestTo(end.coords), total * 0.5);
+
+  picks.sort((a, b) => haversineKm(start.coords, a.coords) - haversineKm(start.coords, b.coords));
+  return [startCode, ...picks.map(p => p.code), endCode].join('-');
+}
+
+// Free-text place search over the hub database: matches codes, names, states and countries
+function searchHubs(query, limit = 8) {
+  const q = (query || '').toLowerCase().replace(/[^\p{L}\p{N}\s-]/gu, ' ').trim();
+  if (q.length < 2) return [];
+  const tokens = q.split(/\s+/).filter(Boolean);
+
+  const results = [];
+  for (const [code, h] of Object.entries(GLOBAL_LOGISTICS_HUBS)) {
+    const name = (h.name || '').toLowerCase();
+    const state = (h.stateName || '').toLowerCase();
+    const country = (h.country || '').toLowerCase();
+    const haystack = `${code} ${h.hub || ''} ${name} ${state} ${country} ${(h.region || '').toLowerCase()} ${(h.type || '').toLowerCase()}`.toLowerCase();
+    if (!tokens.every(tok => haystack.includes(tok))) continue;
+
+    let score = 0;
+    if (code.toLowerCase() === q) score += 100;
+    if (name.startsWith(q)) score += 80;
+    if (name.split(/\s+/).some(w => w.startsWith(q))) score += 50;
+    if (name.includes(q)) score += 30;
+    if (state.includes(q)) score += 20;
+    tokens.forEach(tok => {
+      if (name.split(/\s+/).some(w => w.startsWith(tok))) score += 10;
+    });
+    results.push({ code, score });
+  }
+  results.sort((a, b) => b.score - a.score);
+  return results.slice(0, limit).map(r => r.code);
+}
+
+// Type-to-search place box: suggests matching hubs and any place in the world, and hands the pick back
+function PlaceSearchInput({ value, onTextChange, onPick, onPickPlace, placeholder }) {
+  const [open, setOpen] = useState(false);
+  const [world, setWorld] = useState([]);
+  const [worldState, setWorldState] = useState('idle'); // idle | loading | error | done
+  const matches = open ? searchHubs(value) : [];
+
+  // Look the typed text up worldwide once typing pauses
+  useEffect(() => {
+    const text = (value || '').trim();
+    if (!open || text.length < 3) {
+      setWorld([]);
+      setWorldState('idle');
+      return undefined;
+    }
+    const controller = new AbortController();
+    setWorldState('loading');
+    const timer = setTimeout(async () => {
+      try {
+        const results = await geocodeWorld(text, controller.signal);
+        setWorld(results);
+        setWorldState('done');
+      } catch (err) {
+        if (err.name !== 'AbortError') {
+          setWorld([]);
+          setWorldState('error');
+        }
+      }
+    }, 450);
+    return () => { clearTimeout(timer); controller.abort(); };
+  }, [value, open]);
+
+  const rowStyle = { padding: '8px 12px', cursor: 'pointer', fontSize: '0.85rem', color: '#0F172A', borderBottom: '1px solid #F1F5F9' };
+  const headStyle = { padding: '6px 12px', fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.8px', textTransform: 'uppercase', color: '#64748B', background: '#F8FAFC' };
+  const hover = (on) => (e) => { e.currentTarget.style.background = on ? '#F1F5F9' : '#ffffff'; };
+
+  return (
+    <div style={{ position: 'relative', flex: 1 }}>
+      <input
+        type="text"
+        placeholder={placeholder}
+        value={value}
+        autoComplete="off"
+        onChange={(e) => { onTextChange(e.target.value); setOpen(true); }}
+        onFocus={(e) => { e.target.select(); }}
+        onBlur={() => setTimeout(() => setOpen(false), 200)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' && matches.length > 0) {
+            e.preventDefault();
+            onPick(matches[0]);
+            setOpen(false);
+          }
+        }}
+        style={{ width: '100%', boxSizing: 'border-box' }}
+      />
+      {open && value && value.trim().length >= 2 && (
+        <div style={{
+          position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 50, marginTop: '4px',
+          background: '#ffffff', border: '1px solid #CBD5E1', borderRadius: '6px',
+          boxShadow: '0 8px 24px rgba(15,23,42,0.15)', maxHeight: '340px', overflowY: 'auto'
+        }}>
+          {matches.length > 0 && <div style={headStyle}>Our hubs</div>}
+          {matches.map(code => {
+            const h = GLOBAL_LOGISTICS_HUBS[code];
+            return (
+              <div
+                key={code}
+                onMouseDown={(e) => { e.preventDefault(); onPick(code); setOpen(false); }}
+                style={rowStyle}
+                onMouseEnter={hover(true)}
+                onMouseLeave={hover(false)}
+              >
+                <strong>{h.flag} {h.name}</strong>
+                <span style={{ color: '#64748B' }}> ({code}){h.stateName ? `, ${h.stateName}` : ''}</span>
+              </div>
+            );
+          })}
+
+          <div style={headStyle}>Anywhere in the world</div>
+          {worldState === 'loading' && <div style={{ ...rowStyle, cursor: 'default', color: '#64748B' }}>Searching the world…</div>}
+          {worldState === 'error' && <div style={{ ...rowStyle, cursor: 'default', color: '#B91C1C' }}>World search is unavailable right now.</div>}
+          {worldState === 'done' && world.length === 0 && <div style={{ ...rowStyle, cursor: 'default', color: '#64748B' }}>No place found. Check the spelling.</div>}
+          {world.map((place, i) => (
+            <div
+              key={`${place.label}-${i}`}
+              onMouseDown={(e) => { e.preventDefault(); onPickPlace(place); setOpen(false); }}
+              style={rowStyle}
+              onMouseEnter={hover(true)}
+              onMouseLeave={hover(false)}
+            >
+              <strong>📍 {place.label}</strong>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 function getInterpolatedPosition(waypoints, progressPercentage) {
   if (!waypoints || waypoints.length === 0) return [0, 0];
   if (waypoints.length === 1) return GPS_COORDINATES[waypoints[0]] || [0, 0];
@@ -2417,6 +2661,14 @@ export default function App() {
       destCode: formDestCode,
       eta: formEta,
       waypoints: waypointsArray,
+      customPlaces: Object.fromEntries(
+        [...new Set([formOriginCode, formDestCode, ...waypointsArray])]
+          .filter(code => GLOBAL_LOGISTICS_HUBS[code] && GLOBAL_LOGISTICS_HUBS[code].custom)
+          .map(code => {
+            const h = GLOBAL_LOGISTICS_HUBS[code];
+            return [code, { name: h.name, stateName: h.stateName, country: h.country, coords: h.coords }];
+          })
+      ),
       packageImage: formUploadedImage?.base64 || '',
       internalNotes: formInternalNotes || ''
     };
@@ -2957,6 +3209,8 @@ export default function App() {
       alert('Failed to connect to backend server for deletion.');
     }
   };
+
+  shipments.forEach(s => registerCustomPlaces(s.customPlaces));
 
   const customerShipments = user && user.role === 'customer'
     ? shipments.filter(s => s.customerEmail && s.customerEmail.toLowerCase() === user.email.toLowerCase())
@@ -4802,12 +5056,22 @@ export default function App() {
                                 >
                                   {renderCategorizedHubOptions()}
                                 </select>
-                                <input 
-                                  type="text" 
-                                  placeholder="e.g. 🇬🇧 London Heathrow Superhub (LHR)"
+                                <PlaceSearchInput
+                                  placeholder="Type a city, airport or code, e.g. Birmingham"
                                   value={formOrigin}
-                                  onChange={(e) => setFormOrigin(e.target.value)}
-                                  style={{ flex: 1 }}
+                                  onTextChange={setFormOrigin}
+                                  onPick={(code) => {
+                                    setFormOriginCode(code);
+                                    setFormOrigin(formatHubLocationText(code));
+                                    setFormRouteConfig(calculateSmartRoute(code, formDestCode));
+                                  }}
+                                  onPickPlace={(place) => {
+                                    const code = makeCustomCode(place.name, place.coords[0], place.coords[1]);
+                                    registerCustomPlace(code, place);
+                                    setFormOriginCode(code);
+                                    setFormOrigin(formatHubLocationText(code));
+                                    setFormRouteConfig(calculateSmartRoute(code, formDestCode));
+                                  }}
                                 />
                               </div>
                             </div>
@@ -4828,12 +5092,22 @@ export default function App() {
                                 >
                                   {renderCategorizedHubOptions()}
                                 </select>
-                                <input 
-                                  type="text" 
-                                  placeholder="e.g. 🇺🇸 New York JFK Air Cargo (JFK)"
+                                <PlaceSearchInput
+                                  placeholder="Type a city, airport or code, e.g. New York"
                                   value={formDestination}
-                                  onChange={(e) => setFormDestination(e.target.value)}
-                                  style={{ flex: 1 }}
+                                  onTextChange={setFormDestination}
+                                  onPick={(code) => {
+                                    setFormDestCode(code);
+                                    setFormDestination(formatHubLocationText(code));
+                                    setFormRouteConfig(calculateSmartRoute(formOriginCode, code));
+                                  }}
+                                  onPickPlace={(place) => {
+                                    const code = makeCustomCode(place.name, place.coords[0], place.coords[1]);
+                                    registerCustomPlace(code, place);
+                                    setFormDestCode(code);
+                                    setFormDestination(formatHubLocationText(code));
+                                    setFormRouteConfig(calculateSmartRoute(formOriginCode, code));
+                                  }}
                                 />
                               </div>
                             </div>

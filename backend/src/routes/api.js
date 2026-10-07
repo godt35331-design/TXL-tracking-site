@@ -157,6 +157,24 @@ router.get('/shipments/:id/image', async (req, res) => {
   }
 });
 
+// Keep only well-formed custom map places (waypoint code -> name + coordinates)
+function sanitizeCustomPlaces(input) {
+  const out = {};
+  if (!input || typeof input !== 'object') return out;
+  for (const [code, p] of Object.entries(input).slice(0, 12)) {
+    if (!/^[A-Z0-9]{3,10}$/.test(code) || !p || !Array.isArray(p.coords) || p.coords.length !== 2) continue;
+    const [lat, lng] = p.coords.map(Number);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) continue;
+    out[code] = {
+      name: String(p.name || code).slice(0, 120),
+      stateName: String(p.stateName || '').slice(0, 120),
+      country: String(p.country || '').slice(0, 80),
+      coords: [lat, lng]
+    };
+  }
+  return out;
+}
+
 // 4. Admin Dispatch Appointment (Insert Cargo Row)
 router.post('/shipments', requireAdmin, async (req, res) => {
   const sData = req.body;
@@ -188,6 +206,7 @@ router.post('/shipments', requireAdmin, async (req, res) => {
       eta: sData.eta,
       packageImage: sData.packageImage || '',
       internalNotes: sData.internalNotes || '',
+      customPlaces: sanitizeCustomPlaces(sData.customPlaces),
       status: 'Registered',
       currentLocationName: `Scheduled for departure at ${sData.origin}`,
       simulation: {
