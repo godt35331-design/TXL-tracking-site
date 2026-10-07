@@ -3166,7 +3166,7 @@ export default function App() {
       )}
 
         {/* 🚀 Render SPA Views Routing Context */}
-        <main className={`main-content ${!user ? 'full-width' : ''}`}>
+        <main className={`main-content ${(!user || activeTab === 'home' || activeTab === 'login') ? 'full-width' : ''}`}>
           
           {/* LANDING PAGE VIEW */}
           {activeTab === 'home' && (
