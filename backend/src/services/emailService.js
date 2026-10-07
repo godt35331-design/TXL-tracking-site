@@ -6,7 +6,7 @@ const getResendClient = () => {
 };
 
 /**
- * Clean corporate email layout with TXL Express brand identity (TXL Navy #0F172A & TXL Orange #FF6B00)
+ * Clean corporate email layout. One brand color (TXL Navy #0F172A) with neutral greys, no icons or emoji.
  */
 function buildHtmlEmail({ recipientName, title, message, trackingNumber, status, origin, destination, credentials, packageImage }) {
   const domain = process.env.PORTAL_DOMAIN || 'txlglobaltracking.com';
@@ -22,6 +22,9 @@ function buildHtmlEmail({ recipientName, title, message, trackingNumber, status,
     imageDisplaySrc = `${backendBase}/api/shipments/${trackingNumber}/image`;
   }
 
+  const NAVY = '#0F172A';
+  const label = 'font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 1px; margin: 0 0 6px 0;';
+
   return `
   <!DOCTYPE html>
   <html>
@@ -30,76 +33,77 @@ function buildHtmlEmail({ recipientName, title, message, trackingNumber, status,
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>${title}</title>
   </head>
-  <body style="margin: 0; padding: 30px 15px; background-color: #f1f5f9; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #0f172a; line-height: 1.6;">
+  <body style="margin: 0; padding: 30px 15px; background-color: #f1f5f9; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: ${NAVY}; line-height: 1.6;">
     <div style="max-width: 580px; margin: 0 auto;">
-      
-      <!-- Top TXL Brand Header Bar -->
-      <div style="background-color: #0F172A; border-radius: 8px 8px 0 0; padding: 20px 24px; text-align: left; display: flex; align-items: center; border-bottom: 3px solid #FF6B00;">
-        <span style="font-size: 26px; font-weight: 900; font-style: italic; color: #FFFFFF; letter-spacing: 1.5px; font-family: 'Arial Black', Impact, sans-serif;">TXL</span>
-        <span style="font-size: 16px; font-weight: 700; color: #FF6B00; margin-left: 12px; text-transform: uppercase; letter-spacing: 0.5px;">Express Logistics</span>
+
+      <!-- Header -->
+      <div style="background-color: ${NAVY}; border-radius: 6px 6px 0 0; padding: 22px 32px;">
+        <span style="font-size: 24px; font-weight: 800; color: #ffffff; letter-spacing: 2px;">TXL</span>
+        <span style="font-size: 13px; font-weight: 600; color: #cbd5e1; margin-left: 10px; text-transform: uppercase; letter-spacing: 1.5px;">Express Logistics</span>
       </div>
 
-      <!-- Main Content Card -->
-      <div style="background-color: #ffffff; border-radius: 0 0 8px 8px; padding: 32px; margin-bottom: 16px; border: 1px solid #e2e8f0; border-top: none; box-shadow: 0 4px 12px rgba(15,23,42,0.06);">
-        
-        <p style="font-size: 16px; color: #0f172a; margin-top: 0; margin-bottom: 18px; font-weight: 700;">
+      <!-- Main Content -->
+      <div style="background-color: #ffffff; border-radius: 0 0 6px 6px; padding: 32px; margin-bottom: 16px; border: 1px solid #e2e8f0; border-top: none;">
+
+        <p style="font-size: 16px; color: ${NAVY}; margin: 0 0 16px 0; font-weight: 600;">
           Dear ${recipientName || 'Valued Customer'},
         </p>
 
-        <div style="font-size: 15px; color: #334155; line-height: 1.6; margin-bottom: 24px;">
+        <div style="font-size: 15px; color: #334155; line-height: 1.7; margin-bottom: 28px;">
           ${message.replace(/\n/g, '<br/>')}
         </div>
 
         ${credentials ? `
-        <!-- Credentials Box -->
-        <div style="background-color: #FFF7ED; border-left: 4px solid #FF6B00; border: 1px solid #FFEDD5; border-left-width: 4px; border-radius: 4px; padding: 18px; margin-bottom: 24px; font-size: 14px;">
-          <div style="font-weight: 800; color: #EA580C; margin-bottom: 10px; text-transform: uppercase; font-size: 13px; letter-spacing: 0.5px;">🔐 Your Tracking Number</div>
-          <div style="color: #0f172a;"><strong>Use this number to access your portal:</strong> <span style="font-family: monospace; font-weight: 800; background: #FF6B00; padding: 3px 8px; border-radius: 3px; color: #ffffff;">${credentials.password}</span></div>
+        <!-- Portal access -->
+        <div style="border: 1px solid #e2e8f0; border-left: 4px solid ${NAVY}; border-radius: 4px; padding: 16px 20px; margin-bottom: 20px;">
+          <p style="${label}">Your Tracking Number</p>
+          <p style="margin: 0 0 6px 0; font-family: 'Courier New', monospace; font-size: 20px; font-weight: 700; color: ${NAVY}; letter-spacing: 1px;">${credentials.password}</p>
+          <p style="margin: 0; font-size: 13px; color: #64748b;">Enter this number on our website to open your portal.</p>
         </div>
         ` : ''}
 
         ${packageImage ? `
-        <!-- Verified Package Intake Photo Card (Under Credentials) -->
-        <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 20px; margin-bottom: 24px; text-align: center;">
-          <div style="font-weight: 800; color: #0F172A; margin-bottom: 12px; font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px;">
-            📸 Verified Package Intake Photo
-          </div>
-          <div style="display: inline-block; border-radius: 8px; overflow: hidden; border: 1px solid #cbd5e1; box-shadow: 0 4px 12px rgba(15,23,42,0.08); background: #ffffff; max-width: 100%;">
-            <img src="${imageDisplaySrc}" alt="Verified Package Intake Photo" style="max-width: 100%; width: 440px; max-height: 320px; display: block; object-fit: contain; margin: 0 auto;" />
-          </div>
-          <div style="margin-top: 10px; font-size: 11px; color: #64748B;">
-            Intake photograph registered at carrier cargo facility &bull; Tracking ID #${trackingNumber || ''}
-          </div>
+        <!-- Package photo -->
+        <div style="border: 1px solid #e2e8f0; border-radius: 4px; padding: 16px 20px; margin-bottom: 20px; text-align: center;">
+          <p style="${label} text-align: left;">Package Photo</p>
+          <img src="${imageDisplaySrc}" alt="Package photo" style="max-width: 100%; width: 440px; max-height: 320px; display: block; object-fit: contain; margin: 0 auto; border-radius: 4px;" />
+          <p style="margin: 10px 0 0 0; font-size: 12px; color: #64748b; text-align: left;">Photographed at our facility. Tracking number ${trackingNumber || ''}</p>
         </div>
         ` : ''}
 
         ${trackingNumber ? `
-        <!-- Tracking Summary Box -->
-        <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 18px; margin-bottom: 24px; font-size: 14px;">
-          <div style="margin-bottom: 8px; color: #0f172a;"><strong>Tracking Code:</strong> <span style="font-family: monospace; font-weight: 800; color: #FF6B00; font-size: 15px;">${trackingNumber}</span></div>
-          ${status ? `<div style="margin-bottom: 8px; color: #0f172a;"><strong>Live Status:</strong> <span style="font-weight: 600; color: #10B981; text-transform: uppercase;">${status}</span></div>` : ''}
-          ${origin || destination ? `<div style="color: #64748b;"><strong>Route Transit:</strong> ${origin || 'N/A'} &rarr; ${destination || 'N/A'}</div>` : ''}
-        </div>
+        <!-- Shipment details -->
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border: 1px solid #e2e8f0; border-radius: 4px; margin-bottom: 24px; font-size: 14px;">
+          <tr>
+            <td style="padding: 12px 20px; color: #64748b; width: 40%; border-bottom: 1px solid #e2e8f0;">Tracking number</td>
+            <td style="padding: 12px 20px; color: ${NAVY}; font-weight: 600; border-bottom: 1px solid #e2e8f0; font-family: 'Courier New', monospace;">${trackingNumber}</td>
+          </tr>
+          ${status ? `<tr>
+            <td style="padding: 12px 20px; color: #64748b; border-bottom: 1px solid #e2e8f0;">Status</td>
+            <td style="padding: 12px 20px; color: ${NAVY}; font-weight: 600; border-bottom: 1px solid #e2e8f0;">${status}</td>
+          </tr>` : ''}
+          ${origin || destination ? `<tr>
+            <td style="padding: 12px 20px; color: #64748b;">Route</td>
+            <td style="padding: 12px 20px; color: ${NAVY}; font-weight: 600;">${origin || 'N/A'} to ${destination || 'N/A'}</td>
+          </tr>` : ''}
+        </table>
         ` : ''}
 
-        <!-- Track Shipment CTA Button -->
+        <!-- Call to action -->
         <div style="margin-top: 28px; text-align: center;">
-          <a href="${siteUrl}" style="display: inline-block; background-color: #FF6B00; color: #ffffff; font-weight: 800; font-size: 15px; padding: 14px 32px; border-radius: 6px; text-decoration: none; letter-spacing: 0.5px; box-shadow: 0 4px 12px rgba(255, 107, 0, 0.3);">
-            Track Your Shipment Live &rarr;
+          <a href="${siteUrl}" style="display: inline-block; background-color: ${NAVY}; color: #ffffff; font-weight: 600; font-size: 14px; padding: 14px 36px; border-radius: 4px; text-decoration: none; letter-spacing: 0.5px;">
+            Track Your Shipment
           </a>
         </div>
 
       </div>
 
-      <!-- Contact & Legal Footer Card -->
-      <div style="background-color: #ffffff; border-radius: 6px; padding: 20px; border: 1px solid #e2e8f0; font-size: 12px; color: #64748b; box-shadow: 0 2px 6px rgba(15,23,42,0.03); text-align: center;">
-        <p style="margin: 0 0 6px 0; font-weight: 800; color: #0f172a; font-size: 13px;">TXL Express Global Logistics Services</p>
-        <p style="margin: 0 0 4px 0;">Official Automated Shipment Notification</p>
-        <p style="margin: 0 0 4px 0;">Customer Portal: <a href="${siteUrl}" style="color: #FF6B00; font-weight: 600; text-decoration: underline;">${domain}</a></p>
-        <p style="margin: 0; color: #94a3b8;">Support Desk: ${supportEmail}</p>
-        <div style="margin-top: 12px; border-top: 1px solid #f1f5f9; padding-top: 10px; font-size: 11px; color: #94a3b8;">
-          &copy; ${new Date().getFullYear()} TXL Express Global Logistics. All rights reserved.
-        </div>
+      <!-- Footer -->
+      <div style="padding: 16px 20px; font-size: 12px; color: #64748b; text-align: center;">
+        <p style="margin: 0 0 4px 0; font-weight: 700; color: ${NAVY};">TXL Express Global Logistics</p>
+        <p style="margin: 0 0 4px 0;">Customer portal: <a href="${siteUrl}" style="color: ${NAVY}; text-decoration: underline;">${domain}</a></p>
+        <p style="margin: 0 0 10px 0;">Support: ${supportEmail}</p>
+        <p style="margin: 0; color: #94a3b8;">&copy; ${new Date().getFullYear()} TXL Express Global Logistics. All rights reserved.</p>
       </div>
 
     </div>
@@ -192,4 +196,3 @@ export async function sendEmail({ to, recipientName, subject, messageBody, templ
     throw error;
   }
 }
-
