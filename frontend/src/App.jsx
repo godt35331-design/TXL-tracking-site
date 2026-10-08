@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import L from 'leaflet';
+import InboxApp from './InboxApp.jsx';
 import 'leaflet/dist/leaflet.css';
 import { 
   Truck, Plane, Ship, Activity, ClipboardList, PlusCircle, CheckCircle, 
@@ -2498,6 +2499,13 @@ export default function App() {
         return;
       }
 
+      // The phone inbox needs the admin sign-in; remember to come back to it afterwards
+      if (!currentUser && targetTab === 'inbox') {
+        try { sessionStorage.setItem('txl_after_login', 'inbox'); } catch (e) { /* ignore */ }
+        window.location.hash = '#login';
+        return;
+      }
+
       // Protected route check
       if (!currentUser && ['admin', 'dashboard', 'appointment', 'email-center', 'messages', 'insite-messages', 'customer-messages'].includes(targetTab)) {
         setActiveTab('home');
@@ -2692,7 +2700,9 @@ export default function App() {
         setUser(sessionData);
         userRef.current = sessionData;
 
-        const targetTab = data.role === 'admin' ? 'admin' : 'dashboard';
+        let afterLogin = null;
+        try { afterLogin = sessionStorage.getItem('txl_after_login'); sessionStorage.removeItem('txl_after_login'); } catch (err) { /* ignore */ }
+        const targetTab = data.role === 'admin' ? (afterLogin === 'inbox' ? 'inbox' : 'admin') : 'dashboard';
         setActiveTab(targetTab);
         window.location.hash = `#${targetTab}`;
       }
@@ -3350,6 +3360,18 @@ export default function App() {
   const myDelivered = customerShipments.filter(s => s.status === 'Delivered').length;
   const myPending = customerShipments.filter(s => s.status === 'Registered' || s.status === 'Warehouse').length;
 
+  if (activeTab === 'inbox' && user && user.role === 'admin') {
+    return (
+      <InboxApp
+        user={user}
+        insiteMessages={insiteMessages}
+        API_BASE={API_BASE}
+        onRefresh={fetchInsiteMessages}
+        onLogout={handleLogout}
+      />
+    );
+  }
+
   return (
     <div>
       {isFlashing && <div className="screen-flash-overlay" />}
@@ -3518,6 +3540,9 @@ export default function App() {
                   </a>
                   <a href="#email-center" className={`sidebar-link ${activeTab === 'email-center' ? 'active' : ''}`}>
                     <Mail className="nav-icon" /> Email Center
+                  </a>
+                  <a href="#inbox" className="sidebar-link">
+                    <MessageCircle className="nav-icon" /> Phone Inbox
                   </a>
                   <div className="sidebar-action-btn-container">
                     <button 

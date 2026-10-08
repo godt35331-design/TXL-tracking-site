@@ -2,6 +2,7 @@ import express from 'express';
 import { Customer, Shipment, Message } from '../db/models.js';
 import { sendEmail } from '../services/emailService.js';
 import { advanceShipmentSimulation } from '../services/simulationEngine.js';
+import { pushToAdmins, saveSubscription, removeSubscription, vapidPublicKey } from '../services/push.js';
 import { notifyAdminPhone, sendTelegramText, telegramEnabled, telegramChatId, telegramWebhookSecret } from '../services/notify.js';
 import { attachAuth, requireUser, requireAdmin, signToken, isLoginBlocked, recordLoginFailure, clearLoginFailures } from '../services/auth.js';
 
@@ -47,6 +48,15 @@ export function broadcastShipmentUpdate(shipment) {
 
 // Push a customer message to the admin's phone (Telegram); never blocks or breaks the request
 async function pingAdminPhone({ customerName, customerEmail, body, channel }) {
+  // Installed TXL Inbox app (browser push)
+  pushToAdmins({
+    title: customerName || customerEmail,
+    body,
+    url: '/#inbox',
+    tag: (customerEmail || '').toLowerCase()
+  }).catch(err => console.warn('[Push] Notification failed:', err.message));
+
+  // Telegram (optional)
   if (!telegramEnabled()) return;
   try {
     const latest = await Shipment.findOne({ customerEmail: (customerEmail || '').toLowerCase() }).sort({ createdAt: -1 });
@@ -892,6 +902,29 @@ router.put('/insite-messages/read', requireUser, async (req, res) => {
   } catch (error) {
     console.error('Error marking in-site messages read:', error);
     res.status(500).json({ error: 'Failed to update in-site message status.' });
+  }
+});
+
+// 15b. Push notification setup for the installed admin inbox app
+router.get('/push/public-key', (req, res) => {
+  res.json({ key: vapidPublicKey() });
+});
+
+router.post('/push/subscribe', requireAdmin, async (req, res) => {
+  try {
+    await saveSubscription(req.body && req.body.subscription, req.auth.email);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+router.post('/push/unsubscribe', requireAdmin, async (req, res) => {
+  try {
+    if (req.body && req.body.endpoint) await removeSubscription(req.body.endpoint);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Could not remove the subscription.' });
   }
 });
 
