@@ -2311,7 +2311,7 @@ const getValidSession = () => {
     }
 
     // Persist active session across browser refreshes for 7 days (7 * 24 * 60 * 60 * 1000 ms)
-    const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
+    const SEVEN_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
     if (saved.loginTimestamp && (Date.now() - saved.loginTimestamp > SEVEN_DAYS_MS)) {
       localStorage.removeItem('txl_user');
       localStorage.removeItem('ups_user');
@@ -2488,7 +2488,14 @@ export default function App() {
       const currentUser = userRef.current || user || getValidSession();
 
       const targetTab = rawHash.startsWith('#details?id=') ? 'details' : rawHash.replace('#', '');
-      
+
+      // Signed-in users never see the tracking-number box again: opening the site or the login page goes straight to their portal
+      const portalHash = currentUser ? (currentUser.role === 'admin' ? '#admin' : '#dashboard') : null;
+      if (portalHash && (!window.location.hash || targetTab === 'login')) {
+        window.location.hash = portalHash;
+        return;
+      }
+
       if (targetTab === 'home' || !rawHash || rawHash === '#home') {
         setActiveTab('home');
         return;
@@ -3559,8 +3566,8 @@ export default function App() {
                   </p>
                   
                   <div className="hero-action-buttons">
-                    <button className="btn-hero-primary" onClick={() => triggerNavigationWithFlash('#login')}>
-                      Track Your Shipment
+                    <button className="btn-hero-primary" onClick={() => triggerNavigationWithFlash(user ? (user.role === 'admin' ? '#admin' : '#dashboard') : '#login')}>
+                      {user ? 'Open My Portal' : 'Track Your Shipment'}
                     </button>
                   </div>
 

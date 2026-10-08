@@ -7,6 +7,7 @@ import { connectDatabase } from './db/connection.js';
 import apiRouter, { setWssInstance, broadcastShipmentUpdate } from './routes/api.js';
 import { startSimulationEngine } from './services/simulationEngine.js';
 import { verifyToken } from './services/auth.js';
+import { setupTelegramWebhook } from './services/notify.js';
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -94,6 +95,7 @@ async function initializeServer() {
     console.log(`WebSocket server connected at ws://localhost:${PORT}`);
     console.log(`REST APIs available at http://localhost:${PORT}/api`);
     console.log(`===============================================`);
+    setupTelegramWebhook();
   });
 }
 

@@ -2,6 +2,7 @@ import express from 'express';
 import { Customer, Shipment, Message } from '../db/models.js';
 import { sendEmail } from '../services/emailService.js';
 import { advanceShipmentSimulation } from '../services/simulationEngine.js';
+import { notifyAdminPhone, sendTelegramText, telegramEnabled, telegramChatId, telegramWebhookSecret } from '../services/notify.js';
 import { attachAuth, requireUser, requireAdmin, signToken, isLoginBlocked, recordLoginFailure, clearLoginFailures } from '../services/auth.js';
 
 const router = express.Router();
@@ -42,6 +43,17 @@ export function broadcastShipmentUpdate(shipment) {
     email: shipment.customerEmail,
     shipmentId: shipment.id
   });
+}
+
+// Push a customer message to the admin's phone (Telegram); never blocks or breaks the request
+async function pingAdminPhone({ customerName, customerEmail, body, channel }) {
+  if (!telegramEnabled()) return;
+  try {
+    const latest = await Shipment.findOne({ customerEmail: (customerEmail || '').toLowerCase() }).sort({ createdAt: -1 });
+    await notifyAdminPhone({ customerName, customerEmail, trackingId: latest ? latest.id : '', body, channel });
+  } catch (err) {
+    console.warn('[Telegram] Notification failed:', err.message);
+  }
 }
 
 // 1. Authentication Router API (tracking number only)
@@ -680,6 +692,7 @@ router.post('/inbound-email', async (req, res) => {
 
     // Broadcast over WebSocket
     sendToClients('NEW_MESSAGE', typeof newMessage.toObject === 'function' ? newMessage.toObject() : newMessage, { email: senderEmail });
+    pingAdminPhone({ customerName, customerEmail: senderEmail, body: cleanBody, channel: 'email' });
 
     console.log(`[INBOUND EMAIL PROCESSED] Received message from ${senderEmail}`);
     return res.status(200).json({ success: true, id: newMessage._id });
@@ -844,6 +857,10 @@ router.post('/insite-messages/send', requireUser, async (req, res) => {
     // Broadcast over WebSocket for instant live delivery
     sendToClients('NEW_INSITE_MESSAGE', typeof newMsg.toObject === 'function' ? newMsg.toObject() : newMsg, { email: cleanEmail });
 
+    if (validSender === 'customer') {
+      pingAdminPhone({ customerName: newMsg.customerName, customerEmail: cleanEmail, body: newMsg.body, channel: 'chat' });
+    }
+
     res.status(201).json({ success: true, message: newMsg });
   } catch (error) {
     console.error('Error sending in-site message:', error);
@@ -876,6 +893,47 @@ router.put('/insite-messages/read', requireUser, async (req, res) => {
     console.error('Error marking in-site messages read:', error);
     res.status(500).json({ error: 'Failed to update in-site message status.' });
   }
+});
+
+// 16. Telegram webhook: replies typed on the admin's phone go back into the customer's chat
+router.post('/telegram-webhook', async (req, res) => {
+  // Always answer 200 so Telegram does not keep retrying
+  if (!telegramEnabled() || req.headers['x-telegram-bot-api-secret-token'] !== telegramWebhookSecret()) {
+    return res.status(200).json({ ok: false });
+  }
+
+  try {
+    const msg = req.body && req.body.message;
+    if (!msg || !msg.text || String(msg.chat && msg.chat.id) !== telegramChatId()) {
+      return res.status(200).json({ ok: true });
+    }
+
+    const quoted = msg.reply_to_message && msg.reply_to_message.text;
+    const match = quoted && quoted.match(/<([^>\s]+@[^>\s]+)>/);
+    if (!match) {
+      await sendTelegramText('To answer a customer, long-press their notification and use Reply.');
+      return res.status(200).json({ ok: true });
+    }
+
+    const customerEmail = match[1].toLowerCase();
+    const customer = await Customer.findOne({ email: customerEmail });
+    const adminMsg = new Message({
+      customerEmail,
+      customerName: customer ? customer.name : 'TXL Logistics Support',
+      subject: 'In-Site Support Chat',
+      body: msg.text.trim().slice(0, 4000),
+      sender: 'admin',
+      channel: 'insite',
+      read: false,
+      messageId: `<insite-${Date.now()}@${customerEmail}>`
+    });
+    await adminMsg.save();
+    sendToClients('NEW_INSITE_MESSAGE', typeof adminMsg.toObject === 'function' ? adminMsg.toObject() : adminMsg, { email: customerEmail });
+    await sendTelegramText(`Sent to ${customerEmail}`);
+  } catch (err) {
+    console.error('[Telegram] Webhook error:', err);
+  }
+  res.status(200).json({ ok: true });
 });
 
 export default router;
