@@ -2433,9 +2433,6 @@ export default function App() {
   const [credentialsModal, setCredentialsModal] = useState(null);
   const [isDraggingImage, setIsDraggingImage] = useState(false);
   const [photoPreviewModal, setPhotoPreviewModal] = useState(null);
-  const [showCustomerTrackPrompt, setShowCustomerTrackPrompt] = useState(false);
-  const [customerTrackInput, setCustomerTrackInput] = useState('');
-  const [trackPromptError, setTrackPromptError] = useState('');
 
   // Visitor Quick Tracking Modal States
 
@@ -3447,11 +3444,15 @@ export default function App() {
                     href="#tracking" 
                     onClick={(e) => {
                       e.preventDefault();
-                      setCustomerTrackInput('');
-                      setTrackPromptError('');
-                      setShowCustomerTrackPrompt(true);
+                      // No tracking number to type: open the shipment directly, or the list when there are several
+                      if (customerShipments.length === 1) {
+                        setSelectedShipmentId(customerShipments[0].id);
+                        window.location.hash = `#details?id=${customerShipments[0].id}`;
+                      } else {
+                        window.location.hash = '#dashboard';
+                      }
                     }}
-                    className={`sidebar-link ${activeTab === 'details' || showCustomerTrackPrompt ? 'active' : ''}`}
+                    className={`sidebar-link ${activeTab === 'details' ? 'active' : ''}`}
                   >
                     <ClipboardList className="nav-icon" /> Tracking
                   </a>
@@ -6449,130 +6450,6 @@ export default function App() {
         </div>
       )}
       
-      {showCustomerTrackPrompt && (
-        <div className="credentials-overlay" style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          background: 'rgba(0, 0, 0, 0.75)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 9999,
-          backdropFilter: 'blur(4px)'
-        }}>
-          <form className="credentials-modal" onSubmit={(e) => {
-            e.preventDefault();
-            if (!customerTrackInput.trim()) {
-              setTrackPromptError('Please enter a tracking number.');
-              return;
-            }
-            const target = customerShipments.find(s => s.id.trim().toUpperCase() === customerTrackInput.trim().toUpperCase());
-            if (target) {
-              setShowCustomerTrackPrompt(false);
-              setSelectedShipmentId(target.id);
-              window.location.hash = `#details?id=${target.id}`;
-            } else {
-              setTrackPromptError('Tracking ID not found in your account.');
-            }
-          }} style={{
-            background: 'var(--card-bg, #2a2521)',
-            border: '1px solid var(--primary-color, #0F172A)',
-            borderRadius: '12px',
-            padding: '24px',
-            width: '100%',
-            maxWidth: '400px',
-            margin: '0 16px',
-            boxSizing: 'border-box',
-            boxShadow: '0 20px 40px rgba(0,0,0,0.5)',
-            color: 'var(--text-primary, #ffffff)',
-            animation: 'fadeInCode 0.25s ease-out'
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
-              <div style={{
-                background: 'rgba(255, 185, 0, 0.1)',
-                padding: '8px',
-                borderRadius: '50%',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center'
-              }}>
-                <svg viewBox="0 0 24 24" fill="none" stroke="#0F172A" strokeWidth="2.5" style={{width: '20px', height: '20px'}}><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-              </div>
-              <h3 style={{ margin: 0, fontSize: '1.25rem', color: '#0F172A' }}>Track Your Shipment</h3>
-            </div>
-            
-            <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary, #cccccc)', marginBottom: '20px', lineHeight: '1.4' }}>
-              Please enter your 8-digit tracking ID number to view live simulation path updates, ETA checkpoints, and status notifications.
-            </p>
-            
-            <div style={{ marginBottom: '20px' }}>
-              <label style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-secondary)', display: 'block', marginBottom: '6px' }}>Tracking Number</label>
-              <input 
-                type="text"
-                value={customerTrackInput}
-                onChange={(e) => {
-                  setCustomerTrackInput(e.target.value);
-                  setTrackPromptError('');
-                }}
-                placeholder="e.g. TXL-31518784"
-                style={{
-                  width: '100%',
-                  background: 'var(--bg-secondary, #1b1613)',
-                  border: '1px solid var(--border-color, #444)',
-                  borderRadius: '6px',
-                  padding: '10px 12px',
-                  color: '#fff',
-                  fontFamily: 'monospace',
-                  fontSize: '1rem',
-                  boxSizing: 'border-box'
-                }}
-                autoFocus
-              />
-              {trackPromptError && (
-                <div style={{ color: '#ef4444', fontSize: '0.85rem', marginTop: '8px' }}>
-                  {trackPromptError}
-                </div>
-              )}
-            </div>
-            
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
-              <button 
-                type="button" 
-                onClick={() => setShowCustomerTrackPrompt(false)}
-                style={{
-                  background: 'none',
-                  color: 'var(--text-secondary, #cccccc)',
-                  border: '1px solid var(--border-color, #444)',
-                  borderRadius: '6px',
-                  padding: '10px 16px',
-                  cursor: 'pointer',
-                  fontSize: '0.9rem'
-                }}
-              >
-                CANCEL
-              </button>
-              <button 
-                type="submit" 
-                style={{
-                  background: 'linear-gradient(135deg, #0F172A 0%, #E29E00 100%)',
-                  color: '#1b1613',
-                  border: 'none',
-                  borderRadius: '6px',
-                  padding: '10px 20px',
-                  fontWeight: 'bold',
-                  cursor: 'pointer',
-                  fontSize: '0.9rem'
-                }}
-              >
-                TRACK SHIPMENT
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
 
     </div>
   );
