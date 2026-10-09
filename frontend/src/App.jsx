@@ -435,27 +435,98 @@ const registerCustomPlaces = (places) => {
   Object.entries(places).forEach(([code, place]) => registerCustomPlace(code, place));
 };
 
-// World-wide place lookup (OpenStreetMap data via Photon): handles partial and misspelled names
-async function geocodeWorld(query, signal) {
-  const res = await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&limit=6`, { signal });
-  if (!res.ok) throw new Error('Place search unavailable');
-  const data = await res.json();
-  const seen = new Set();
-  return (data.features || []).map(f => {
-    const p = f.properties || {};
-    const [lng, lat] = f.geometry.coordinates;
-    const streetLine = [p.housenumber, p.street].filter(Boolean).join(' ');
-    const name = p.name || streetLine || p.city || p.state || p.country || query;
-    const parts = [name, p.city && p.city !== name ? p.city : '', p.state, p.country].filter(Boolean);
-    const label = [...new Set(parts)].join(', ');
-    return { name, stateName: p.state || p.city || '', country: p.country || '', coords: [lat, lng], label };
-  }).filter(r => {
-    if (seen.has(r.label)) return false;
-    seen.add(r.label);
-    return true;
-  });
-}
+// UK postcodes are often typed without a space or in lower case ("ol13eh"); tidy them so lookups match
+const UK_POSTCODE_RE = /\b([A-Z]{1,2}\d[A-Z\d]?)\s*(\d[A-Z]{2})\b/i;
+const findUkPostcode = (text) => {
+  const m = (text || '').match(UK_POSTCODE_RE);
+  return m ? `${m[1].toUpperCase()} ${m[2].toUpperCase()}` : '';
+};
 
+// World-wide address lookup. Asks several free map databases at once so one of them being slow or
+// missing a house does not stop the search, then merges the answers (exact house matches first).
+async function geocodeWorld(query, signal) {
+  const postcode = findUkPostcode(query);
+  const cleaned = postcode ? query.replace(UK_POSTCODE_RE, postcode) : query;
+
+  const fromNominatim = async () => {
+    const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(cleaned)}&format=jsonv2&addressdetails=1&limit=6`, { signal });
+    if (!res.ok) throw new Error('Nominatim unavailable');
+    const data = await res.json();
+    return data.map(r => {
+      const a = r.address || {};
+      const street = [a.house_number, a.road || a.pedestrian || a.footway || a.name].filter(Boolean).join(' ');
+      const area = a.suburb || a.city_district || a.neighbourhood || '';
+      const town = a.city || a.town || a.village || a.municipality || a.county || '';
+      const label = [street, area, town, a.postcode, a.country].filter(Boolean).join(', ') || r.display_name;
+      return {
+        name: street || r.name || town || label,
+        stateName: town || a.state || '',
+        country: a.country || '',
+        coords: [parseFloat(r.lat), parseFloat(r.lon)],
+        label,
+        exact: Boolean(a.house_number)
+      };
+    });
+  };
+
+  const fromPhoton = async () => {
+    const res = await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(cleaned)}&limit=6`, { signal });
+    if (!res.ok) throw new Error('Photon unavailable');
+    const data = await res.json();
+    return (data.features || []).map(f => {
+      const p = f.properties || {};
+      const [lng, lat] = f.geometry.coordinates;
+      const streetLine = [p.housenumber, p.street].filter(Boolean).join(' ');
+      const name = p.name || streetLine || p.city || p.state || p.country || query;
+      const parts = [name, p.district, p.city && p.city !== name ? p.city : '', p.postcode, p.country].filter(Boolean);
+      return {
+        name,
+        stateName: p.city || p.state || '',
+        country: p.country || '',
+        coords: [lat, lng],
+        label: [...new Set(parts)].join(', '),
+        exact: Boolean(p.housenumber)
+      };
+    });
+  };
+
+  // The exact postcode centre (a UK postcode covers only a handful of houses)
+  const fromPostcode = async () => {
+    if (!postcode) return [];
+    const res = await fetch(`https://api.postcodes.io/postcodes/${encodeURIComponent(postcode.replace(' ', ''))}`, { signal });
+    if (!res.ok) return [];
+    const { result } = await res.json();
+    if (!result) return [];
+    const where = [result.admin_ward, result.admin_district].filter(Boolean).join(', ');
+    return [{
+      name: `Postcode ${result.postcode}`,
+      stateName: result.admin_district || '',
+      country: result.country || 'United Kingdom',
+      coords: [result.latitude, result.longitude],
+      label: `Postcode ${result.postcode}${where ? `, ${where}` : ''} (centre of postcode)`,
+      exact: false,
+      postcodeOnly: true
+    }];
+  };
+
+  const settled = await Promise.allSettled([fromNominatim(), fromPhoton(), fromPostcode()]);
+  if (signal && signal.aborted) throw new DOMException('Aborted', 'AbortError');
+  const lists = settled.map(s => (s.status === 'fulfilled' ? s.value : []));
+  if (settled.every(s => s.status === 'rejected')) throw new Error('Place search unavailable');
+
+  // Exact house matches first, then street/area matches, then the postcode centre
+  const merged = [...lists[0], ...lists[1]].filter(r => Number.isFinite(r.coords[0]) && Number.isFinite(r.coords[1]));
+  // Places that match more of the typed words (town, street) come first; among those, exact house numbers win
+  const words = cleaned.toLowerCase().split(/[^a-z0-9]+/).filter(w => w.length > 2);
+  const fit = (r) => words.filter(w => r.label.toLowerCase().includes(w)).length;
+  merged.sort((a, b) => (fit(b) - fit(a)) || (Number(b.exact) - Number(a.exact)));
+  const out = [];
+  for (const r of [...merged, ...lists[2]]) {
+    const dup = out.some(o => Math.abs(o.coords[0] - r.coords[0]) < 0.0003 && Math.abs(o.coords[1] - r.coords[1]) < 0.0003);
+    if (!dup) out.push(r);
+  }
+  return out.slice(0, 6);
+}
 // Route between places when at least one is a custom location: depart via the nearest big gateway,
 // cross the long haul via a mid-way gateway, arrive via the gateway nearest the destination
 function calculateCustomRoute(startCode, endCode) {
@@ -616,6 +687,7 @@ function PlaceSearchInput({ value, onTextChange, onPick, onPickPlace, placeholde
               onMouseLeave={hover(false)}
             >
               <strong>📍 {place.label}</strong>
+              {place.exact && <span style={{ marginLeft: 8, fontSize: '0.7rem', fontWeight: 700, color: '#15803D' }}>EXACT ADDRESS</span>}
             </div>
           ))}
         </div>

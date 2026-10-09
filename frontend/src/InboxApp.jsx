@@ -93,7 +93,8 @@ export default function InboxApp({ user, insiteMessages, API_BASE, onRefresh, on
   const [installEvent, setInstallEvent] = useState(null);
   const endRef = useRef(null);
 
-  const isStandalone = typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(display-mode: standalone)').matches;
+  const isStandalone = typeof window !== 'undefined' && ((window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || window.navigator.standalone === true);
+  const isIOS = typeof navigator !== 'undefined' && /iPad|iPhone|iPod/.test(navigator.userAgent);
 
   // Group the chat messages into one conversation per customer
   const conversations = useMemo(() => {
@@ -198,6 +199,8 @@ export default function InboxApp({ user, insiteMessages, API_BASE, onRefresh, on
       installEvent.prompt();
       await installEvent.userChoice.catch(() => {});
       setInstallEvent(null);
+    } else if (isIOS) {
+      setNote('On iPhone: tap the Share button at the bottom of Safari, choose "Add to Home Screen", then open the app from its new icon and tap "Turn on alerts".');
     } else {
       setNote('To install: open your browser menu (the three dots) and choose "Add to Home screen" or "Install app".');
     }
@@ -248,7 +251,7 @@ export default function InboxApp({ user, insiteMessages, API_BASE, onRefresh, on
           </div>
         )}
         {pushState === 'unsupported' && (
-          <div className="ib-note">This browser cannot show alerts. Open the inbox in Chrome on Android, or add it to the iPhone home screen first.</div>
+          <div className="ib-note">{isIOS ? 'Alerts on iPhone only work in the installed app. Tap Share, then Add to Home Screen, and open it from the new icon.' : 'This browser cannot show alerts. Open the inbox in Chrome on Android.'}</div>
         )}
         {note && <div className="ib-note">{note}</div>}
 
