@@ -420,6 +420,54 @@ router.put('/shipments/:id', requireAdmin, async (req, res) => {
   }
 });
 
+// 5c. Switch a shipment alert (customs hold, payment needed, ...) on or off; shows in the customer's portal and can be emailed
+router.put('/shipments/:id/alert', requireAdmin, async (req, res) => {
+  const { active, type, title, note, sendEmail: shouldEmail } = req.body || {};
+  try {
+    const shipment = await Shipment.findOne({ id: req.params.id.toUpperCase() });
+    if (!shipment) return res.status(404).json({ error: 'Shipment not found.' });
+
+    const isOn = Boolean(active);
+    const cleanTitle = String(title || '').trim().slice(0, 120);
+    const cleanNote = String(note || '').trim().slice(0, 2000);
+    if (isOn && (!cleanTitle || !cleanNote)) {
+      return res.status(400).json({ error: 'Add a title and a note explaining what the customer must do.' });
+    }
+
+    shipment.alert = isOn
+      ? { active: true, type: String(type || 'custom').slice(0, 30), title: cleanTitle, note: cleanNote, updatedAt: new Date().toISOString() }
+      : { ...(shipment.alert || {}), active: false, updatedAt: new Date().toISOString() };
+    if (typeof shipment.markModified === 'function') shipment.markModified('alert');
+    await shipment.save();
+    broadcastShipmentUpdate(shipment);
+
+    let emailSent = false;
+    let emailError = null;
+    if (isOn && shouldEmail) {
+      try {
+        await sendEmail({
+          to: shipment.customerEmail,
+          recipientName: shipment.customerName,
+          subject: `Action required: TXL Package #${shipment.id}`,
+          messageBody: 'There is an important update on your shipment that needs your attention. Please see the details below.',
+          templateType: 'CUSTOMS_HOLD',
+          shipment,
+          credentials: { email: shipment.customerEmail, password: shipment.id }
+        });
+        emailSent = true;
+      } catch (mailErr) {
+        console.error('[ALERT EMAIL FAILED]:', mailErr);
+        emailError = mailErr.message;
+      }
+    }
+
+    res.json({ success: true, shipment: publicShipment(shipment, req.auth), emailSent, emailError });
+  } catch (error) {
+    console.error('Error saving shipment alert:', error);
+    res.status(500).json({ error: 'Failed to save the alert.' });
+  }
+});
+
 // 5b. Add or replace the package photo of an existing shipment (optionally email it to the customer)
 router.put('/shipments/:id/image', requireAdmin, async (req, res) => {
   const { packageImage, sendEmail: shouldEmail } = req.body;

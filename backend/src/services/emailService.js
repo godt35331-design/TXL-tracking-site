@@ -8,7 +8,9 @@ const getResendClient = () => {
 /**
  * Clean corporate email layout. One brand color (TXL Navy #0F172A) with neutral greys, no icons or emoji.
  */
-function buildHtmlEmail({ recipientName, title, message, trackingNumber, status, origin, destination, credentials, packageImage }) {
+const escapeHtml = (s) => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+function buildHtmlEmail({ recipientName, title, message, trackingNumber, status, origin, destination, credentials, packageImage, alert }) {
   const domain = process.env.PORTAL_DOMAIN || 'txlglobaltracking.com';
   const supportEmail = process.env.FROM_EMAIL?.includes('<') 
     ? process.env.FROM_EMAIL.match(/<([^>]+)>/)[1] 
@@ -52,6 +54,15 @@ function buildHtmlEmail({ recipientName, title, message, trackingNumber, status,
         <div style="font-size: 15px; color: #334155; line-height: 1.7; margin-bottom: 28px;">
           ${message.replace(/\n/g, '<br/>')}
         </div>
+
+        ${alert ? `
+        <!-- Shipment alert (for example a customs hold) -->
+        <div style="border: 1px solid ${NAVY}; border-left: 4px solid ${NAVY}; border-radius: 4px; padding: 16px 20px; margin-bottom: 20px; background-color: #F8FAFC;">
+          <p style="${label}">Action required</p>
+          <p style="margin: 0 0 8px 0; font-size: 17px; font-weight: 700; color: ${NAVY};">${escapeHtml(alert.title)}</p>
+          <p style="margin: 0; font-size: 14px; color: #334155; line-height: 1.6;">${escapeHtml(alert.note).replace(/\n/g, '<br/>')}</p>
+        </div>
+        ` : ''}
 
         ${credentials ? `
         <!-- Portal access -->
@@ -116,6 +127,7 @@ function buildHtmlEmail({ recipientName, title, message, trackingNumber, status,
  * Main email sender service
  */
 export async function sendEmail({ to, recipientName, subject, messageBody, templateType, shipment, credentials, packageImage, inReplyTo }) {
+  const activeAlert = shipment && shipment.alert && shipment.alert.active ? shipment.alert : null;
   const apiKey = process.env.RESEND_API_KEY;
   const domain = process.env.PORTAL_DOMAIN || 'txlglobaltracking.com';
   const fromEmail = process.env.FROM_EMAIL || `TXL Express Support <support@${domain}>`;
@@ -134,6 +146,8 @@ export async function sendEmail({ to, recipientName, subject, messageBody, templ
     emailSubject = subject || `Shipment Update: TXL Package #${trackingCode}`;
   } else if (templateType === 'DELAY_NOTICE') {
     emailSubject = subject || `Important Notice: Update on TXL Package #${trackingCode}`;
+  } else if (templateType === 'CUSTOMS_HOLD') {
+    emailSubject = subject || `Action required: TXL Package #${trackingCode}`;
   } else if (templateType === 'NEW_REGISTRATION') {
     emailSubject = subject || `TXL Shipment Confirmation - #${trackingCode}`;
   }
@@ -147,10 +161,11 @@ export async function sendEmail({ to, recipientName, subject, messageBody, templ
     origin: origin,
     destination: destination,
     credentials: credentials,
-    packageImage: imgToUse
+    packageImage: imgToUse,
+    alert: activeAlert
   });
 
-  const textContent = `Dear ${recipientName || 'Customer'},\n\n${messageBody}\n\n${credentials ? `YOUR TRACKING NUMBER (use it to access your portal): ${credentials.password}\n\n` : ''}${trackingCode ? `SHIPMENT DETAILS:\nTracking Code: ${trackingCode}\nStatus: ${status || 'IN TRANSIT'}\nRoute: ${origin || 'N/A'} -> ${destination || 'N/A'}\n` : ''}\nTrack Shipment: https://www.${domain}/#login\n\nTXL Express Global Logistics Services\nWebsite: https://www.${domain}/#login\nEmail: ${supportEmail}`;
+  const textContent = `Dear ${recipientName || 'Customer'},\n\n${messageBody}\n\n${activeAlert ? `ACTION REQUIRED: ${activeAlert.title}\n${activeAlert.note}\n\n` : ''}${credentials ? `YOUR TRACKING NUMBER (use it to access your portal): ${credentials.password}\n\n` : ''}${trackingCode ? `SHIPMENT DETAILS:\nTracking Code: ${trackingCode}\nStatus: ${status || 'IN TRANSIT'}\nRoute: ${origin || 'N/A'} -> ${destination || 'N/A'}\n` : ''}\nTrack Shipment: https://www.${domain}/#login\n\nTXL Express Global Logistics Services\nWebsite: https://www.${domain}/#login\nEmail: ${supportEmail}`;
 
   try {
     const resend = new Resend(apiKey);

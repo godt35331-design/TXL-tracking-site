@@ -214,6 +214,48 @@ const GPS_COORDINATES = {
   'SZX': [22.6393, 113.8107]
 };
 
+// Ready-made shipment alerts the admin can switch on; the title and note stay editable
+const ALERT_PRESETS = {
+  customs: {
+    label: 'Held at customs',
+    title: 'Your goods are being held at customs',
+    note: 'Customs has placed a hold on your shipment. To release it, please send us a copy of your photo ID and the commercial invoice for the goods, and pay any duty or clearance fee that applies. Reply in your Support Chat or contact our support team and we will guide you through the next step.'
+  },
+  payment: {
+    label: 'Payment required',
+    title: 'Payment is required to continue delivery',
+    note: 'A payment is outstanding on your shipment. Please settle it so we can continue delivery. Contact our support team for the amount and payment details.'
+  },
+  documents: {
+    label: 'Documents required',
+    title: 'Documents are needed for your shipment',
+    note: 'We need additional documents before your shipment can move on. Please send the requested documents through your Support Chat as soon as possible.'
+  },
+  address: {
+    label: 'Confirm delivery address',
+    title: 'Please confirm your delivery address',
+    note: 'We could not complete delivery to the address on file. Please confirm your full delivery address and a phone number where we can reach you.'
+  },
+  custom: { label: 'Custom message', title: '', note: '' }
+};
+
+// Notice shown to a customer for a shipment that needs their attention
+const ShipmentAlertBanner = ({ shipment, compact = false }) => {
+  if (!shipment || !shipment.alert || !shipment.alert.active) return null;
+  return (
+    <div style={{
+      background: '#ffffff', border: '1px solid #0F172A', borderLeft: '6px solid #0F172A', borderRadius: '8px',
+      padding: compact ? '14px 18px' : '18px 22px', marginBottom: '20px', boxShadow: '0 2px 10px rgba(15,23,42,0.08)'
+    }}>
+      <div style={{ fontSize: '0.7rem', fontWeight: 800, letterSpacing: '1px', textTransform: 'uppercase', color: '#64748B', marginBottom: '4px' }}>
+        Action required &bull; Shipment {shipment.id}
+      </div>
+      <div style={{ fontSize: '1.1rem', fontWeight: 700, color: '#0F172A', marginBottom: '6px' }}>{shipment.alert.title}</div>
+      <div style={{ fontSize: '0.92rem', color: '#334155', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{shipment.alert.note}</div>
+    </div>
+  );
+};
+
 // Format helper for text inputs and displays
 const formatHubLocationText = (code) => {
   const item = GLOBAL_LOGISTICS_HUBS[code];
@@ -987,6 +1029,12 @@ const EmailCenterView = ({ shipments, API_BASE }) => {
     } else if (type === 'OUT_FOR_DELIVERY') {
       setSubject(`Out for Delivery: TXL Package #${code}`);
       setMessageBody(`Great news! Your TXL package #${code} is out for final delivery today. Please ensure someone is available to receive the package.`);
+    } else if (type === 'CUSTOMS_HOLD') {
+      const alertInfo = activeShipment?.alert && activeShipment.alert.active ? activeShipment.alert : null;
+      setSubject(`Action required: TXL Package #${code}`);
+      setMessageBody(alertInfo
+        ? `${alertInfo.title}\n\n${alertInfo.note}`
+        : `Your package #${code} is being held at customs.\n\n${ALERT_PRESETS.customs.note}`);
     } else if (type === 'DELAY_NOTICE') {
       setSubject(`Important Notice: Update on TXL Package #${code}`);
       setMessageBody(`We wanted to notify you that shipment #${code} is experiencing a slight delay due to logistics processing. Our team is actively resolving this to deliver your package as soon as possible.`);
@@ -1135,6 +1183,7 @@ const EmailCenterView = ({ shipments, API_BASE }) => {
                   { id: 'SHIPMENT_UPDATE', label: 'Status Update' },
                   { id: 'OUT_FOR_DELIVERY', label: 'Out for Delivery' },
                   { id: 'DELAY_NOTICE', label: 'Delay Notice' },
+                  { id: 'CUSTOMS_HOLD', label: 'Customs Hold / Alert' },
                   { id: 'CUSTOM_NOTICE', label: 'Custom Notice' }
                 ].map(t => (
                   <button
@@ -2488,6 +2537,8 @@ export default function App() {
   const [shipmentSearch, setShipmentSearch] = useState('');
   const [editForm, setEditForm] = useState(null);
   const [editSaving, setEditSaving] = useState(false);
+  const [alertForm, setAlertForm] = useState(null);
+  const [alertSaving, setAlertSaving] = useState(false);
   const [formUploadedImage, setFormUploadedImage] = useState(null);
   const [formWeight, setFormWeight] = useState('');
   const [formDesc, setFormDesc] = useState('');
@@ -2930,6 +2981,47 @@ export default function App() {
     status: s.status || 'Registered',
     internalNotes: s.internalNotes || ''
   });
+
+  const openAlertEditor = (s) => {
+    const a = s.alert || {};
+    setAlertForm({
+      id: s.id,
+      customerName: s.customerName,
+      active: Boolean(a.active),
+      type: a.type || 'customs',
+      title: a.title || ALERT_PRESETS.customs.title,
+      note: a.note || ALERT_PRESETS.customs.note,
+      sendEmail: false
+    });
+  };
+
+  const handleSaveAlert = async (e) => {
+    e.preventDefault();
+    if (!alertForm) return;
+    setAlertSaving(true);
+    try {
+      const { id, customerName, ...payload } = alertForm;
+      const res = await fetch(`${API_BASE}/shipments/${id}/alert`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.error || 'Could not save the alert.');
+        return;
+      }
+      setShipments(prev => prev.map(s => s.id === id ? { ...s, ...data.shipment } : s));
+      setAlertForm(null);
+      if (payload.active && payload.sendEmail) {
+        alert(data.emailSent ? 'Alert is on and the customer has been emailed.' : `Alert is on, but the email failed: ${data.emailError || 'unknown error'}`);
+      }
+    } catch (err) {
+      alert('Could not reach the server.');
+    } finally {
+      setAlertSaving(false);
+    }
+  };
 
   const handleSaveEdit = async (e) => {
     e.preventDefault();
@@ -4095,6 +4187,8 @@ export default function App() {
           {/* CUSTOMER DASHBOARD VIEW */}
           {activeTab === 'dashboard' && user && (
             <section className="customer-dashboard">
+              {customerShipments.map(s => <ShipmentAlertBanner key={s.id} shipment={s} />)}
+
               {/* Statistics Row */}
               <div className="dashboard-stats-row">
                 <div className="stat-card-custom">
@@ -4506,6 +4600,8 @@ export default function App() {
                     </button>
                   </div>
                 )}
+
+                <ShipmentAlertBanner shipment={activeShipment} />
 
                 {/* BACK NAVIGATION */}
                 <div className="back-nav-row">
@@ -5076,10 +5172,21 @@ export default function App() {
                                   <span className="pill-dot"></span>
                                   {s.status}
                                 </span>
+                                {s.alert && s.alert.active && (
+                                  <span style={{ marginLeft: '6px', fontSize: '0.68rem', fontWeight: 700, background: '#0F172A', color: '#ffffff', borderRadius: '4px', padding: '2px 6px' }}>ALERT</span>
+                                )}
                               </td>
                               <td className="date-cell">{s.eta || 'N/A'}</td>
                               <td>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                                  <button
+                                    className="btn-tracker-filter"
+                                    style={s.alert && s.alert.active ? { ...btn, background: '#0F172A', color: '#ffffff', border: '1px solid #0F172A' } : btn}
+                                    onClick={() => openAlertEditor(s)}
+                                    title="Customs hold or other alert shown to the customer"
+                                  >
+                                    <span>{s.alert && s.alert.active ? 'Alert ON' : 'Alert'}</span>
+                                  </button>
                                   <button className="btn-tracker-filter" style={btn} onClick={() => openEditShipment(s)} title="Edit shipment details">
                                     <span>Edit</span>
                                   </button>
@@ -6439,6 +6546,73 @@ export default function App() {
       )}
 
       {/* FULLSCREEN PHOTO PREVIEW MODAL */}
+      {alertForm && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: '16px' }}>
+          <form onSubmit={handleSaveAlert} style={{ background: '#ffffff', borderRadius: '10px', padding: '24px', width: '100%', maxWidth: '560px', maxHeight: '90vh', overflowY: 'auto', boxSizing: 'border-box', boxShadow: '0 20px 50px rgba(0,0,0,0.3)' }}>
+            <h3 style={{ margin: '0 0 4px 0', color: '#0F172A' }}>Shipment alert</h3>
+            <p style={{ margin: '0 0 18px 0', color: '#64748B', fontSize: '0.85rem' }}>
+              {alertForm.id} for {alertForm.customerName}. When on, the customer sees this notice at the top of their portal.
+            </p>
+
+            <label style={{ display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer', marginBottom: '18px', padding: '12px 14px', border: '1px solid #E2E8F0', borderRadius: '8px', background: alertForm.active ? '#F1F5F9' : '#ffffff' }}>
+              <input
+                type="checkbox"
+                checked={alertForm.active}
+                onChange={(e) => setAlertForm(prev => ({ ...prev, active: e.target.checked }))}
+                style={{ width: '20px', height: '20px', accentColor: '#0F172A' }}
+              />
+              <span style={{ fontWeight: 700, color: '#0F172A' }}>{alertForm.active ? 'Alert is ON' : 'Alert is OFF'}</span>
+            </label>
+
+            {(() => {
+              const field = { width: '100%', boxSizing: 'border-box', padding: '9px 12px', border: '1px solid #CBD5E1', borderRadius: '6px', fontSize: '0.9rem', color: '#0F172A', background: '#ffffff', fontFamily: 'inherit' };
+              const lab = { display: 'block', fontSize: '0.7rem', fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: '4px', marginTop: '14px' };
+              return (
+                <>
+                  <label style={{ ...lab, marginTop: 0 }}>Type</label>
+                  <select
+                    style={field}
+                    value={alertForm.type}
+                    onChange={(e) => {
+                      const type = e.target.value;
+                      const preset = ALERT_PRESETS[type];
+                      setAlertForm(prev => ({ ...prev, type, title: preset.title || prev.title, note: preset.note || prev.note }));
+                    }}
+                  >
+                    {Object.entries(ALERT_PRESETS).map(([key, p]) => <option key={key} value={key}>{p.label}</option>)}
+                  </select>
+
+                  <label style={lab}>Title shown to the customer</label>
+                  <input style={field} value={alertForm.title} onChange={(e) => setAlertForm(prev => ({ ...prev, title: e.target.value }))} maxLength={120} />
+
+                  <label style={lab}>Note: what the customer must do</label>
+                  <textarea style={field} rows="6" value={alertForm.note} onChange={(e) => setAlertForm(prev => ({ ...prev, note: e.target.value }))} maxLength={2000} />
+                </>
+              );
+            })()}
+
+            {alertForm.active && (
+              <label style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '16px', cursor: 'pointer', fontSize: '0.9rem', color: '#334155' }}>
+                <input
+                  type="checkbox"
+                  checked={alertForm.sendEmail}
+                  onChange={(e) => setAlertForm(prev => ({ ...prev, sendEmail: e.target.checked }))}
+                  style={{ width: '18px', height: '18px', accentColor: '#0F172A' }}
+                />
+                Also email this notice to the customer now
+              </label>
+            )}
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '20px' }}>
+              <button type="button" onClick={() => setAlertForm(null)} style={{ background: '#ffffff', color: '#334155', border: '1px solid #CBD5E1', borderRadius: '6px', padding: '10px 18px', cursor: 'pointer' }}>Cancel</button>
+              <button type="submit" disabled={alertSaving} style={{ background: '#0F172A', color: '#ffffff', border: 'none', borderRadius: '6px', padding: '10px 22px', fontWeight: 600, cursor: 'pointer', opacity: alertSaving ? 0.7 : 1 }}>
+                {alertSaving ? 'Saving...' : 'Save'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
       {editForm && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: '16px' }}>
           <form onSubmit={handleSaveEdit} style={{ background: '#ffffff', borderRadius: '10px', padding: '24px', width: '100%', maxWidth: '640px', maxHeight: '90vh', overflowY: 'auto', boxSizing: 'border-box', boxShadow: '0 20px 50px rgba(0,0,0,0.3)' }}>
