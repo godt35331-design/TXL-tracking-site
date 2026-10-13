@@ -214,9 +214,9 @@ const GPS_COORDINATES = {
   'SZX': [22.6393, 113.8107]
 };
 
-// Customer support contact (WhatsApp)
+// Customer support contact (phone calls only)
 const SUPPORT_PHONE = '+44 7456 066354';
-const SUPPORT_WHATSAPP_LINK = 'https://wa.me/447456066354';
+const SUPPORT_PHONE_LINK = 'tel:+447456066354';
 
 // Ready-made shipment alerts the admin can switch on; the title and note stay editable
 const ALERT_PRESETS = {
@@ -1312,7 +1312,7 @@ const EmailCenterView = ({ shipments, API_BASE }) => {
             <div style={{ background: '#ffffff', borderRadius: '6px', padding: '16px', border: '1px solid #e2e8f0', fontSize: '12px', color: '#6c757d', textAlign: 'center' }}>
               <p style={{ margin: '0 0 4px 0', fontWeight: '800', color: '#1A1A1A' }}>TXL Express Global Logistics Services</p>
               <p style={{ margin: '0 0 4px 0' }}>Website: txlglobaltracking.com</p>
-              <p style={{ margin: '0 0 4px 0', color: '#868e96' }}>Do not reply to this email. WhatsApp: {SUPPORT_PHONE} or use Support Chat in your portal.</p>
+              <p style={{ margin: '0 0 4px 0', color: '#868e96' }}>Do not reply to this email. Call us on {SUPPORT_PHONE} or use Support Chat in your portal.</p>
             </div>
 
           </div>
@@ -1823,8 +1823,8 @@ const CustomerChatView = ({ user, insiteMessages, API_BASE, onRefresh }) => {
               </span>
             </div>
             <p style={{ color: '#a0aec0', fontSize: '13px', margin: '4px 0 0 0' }}>
-              Chat directly with our central operations dispatch team in real-time. You can also reach us on WhatsApp:{' '}
-              <a href={SUPPORT_WHATSAPP_LINK} target="_blank" rel="noopener noreferrer" style={{ color: '#ffffff', fontWeight: 700 }}>{SUPPORT_PHONE}</a>
+              Chat directly with our central operations dispatch team in real-time. You can also call us on{' '}
+              <a href={SUPPORT_PHONE_LINK} style={{ color: '#ffffff', fontWeight: 700 }}>{SUPPORT_PHONE}</a>
             </p>
           </div>
         </div>
@@ -4106,12 +4106,10 @@ export default function App() {
                   <div className="footer-col-links">
                     <h4>Contact Us</h4>
                     <a
-                      href={SUPPORT_WHATSAPP_LINK}
-                      target="_blank"
-                      rel="noopener noreferrer"
+                      href={SUPPORT_PHONE_LINK}
                       style={{ display: 'inline-flex', flexDirection: 'column', gap: '2px', color: 'inherit', textDecoration: 'none', marginBottom: '12px' }}
                     >
-                      <span style={{ fontSize: '0.78rem', opacity: 0.7 }}>WhatsApp</span>
+                      <span style={{ fontSize: '0.78rem', opacity: 0.7 }}>Call us</span>
                       <span style={{ fontWeight: 700 }}>{SUPPORT_PHONE}</span>
                     </a>
                     <div className="footer-social-circles">
@@ -4254,8 +4252,8 @@ export default function App() {
               {/* Footer attribution */}
               <footer className="portal-footer-note select-none">
                 <p>
-                  Need help? WhatsApp us on{' '}
-                  <a href={SUPPORT_WHATSAPP_LINK} target="_blank" rel="noopener noreferrer" style={{ fontWeight: 700 }}>{SUPPORT_PHONE}</a>
+                  Need help? Call us on{' '}
+                  <a href={SUPPORT_PHONE_LINK} style={{ fontWeight: 700 }}>{SUPPORT_PHONE}</a>
                   {' '}or use Support Chat.
                 </p>
                 <p>© 2026 TXL Express Global Logistics. All rights reserved.</p>

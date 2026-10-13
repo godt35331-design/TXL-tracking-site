@@ -277,7 +277,7 @@ router.post('/shipments', requireAdmin, async (req, res) => {
         customerEmail: custEmail,
         customerName: sData.customerName,
         subject: `TXL Shipment Confirmation - #${newShipment.id}`,
-        body: `Welcome to TXL Express Global Logistics.\n\nYour shipping appointment has been registered.\nTracking Number: #${newShipment.id}\nOrigin: ${newShipment.origin}\nDestination: ${newShipment.destination}\nStatus: Registered\n\nUse your tracking number to access your portal: ${newShipment.id}\n\nPlease do not reply to the business email. Contact us on WhatsApp at +44 7456 066354 or use the Support Chat in your portal.`,
+        body: `Welcome to TXL Express Global Logistics.\n\nYour shipping appointment has been registered.\nTracking Number: #${newShipment.id}\nOrigin: ${newShipment.origin}\nDestination: ${newShipment.destination}\nStatus: Registered\n\nUse your tracking number to access your portal: ${newShipment.id}\n\nPlease do not reply to the business email. Call us on +44 7456 066354 or use the Support Chat in your portal.`,
         sender: 'admin',
         channel: 'email',
         read: true
