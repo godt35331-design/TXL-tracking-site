@@ -6,7 +6,7 @@ import {
   Truck, Plane, Ship, Activity, ClipboardList, PlusCircle, CheckCircle, 
   MapPin, LogOut, ArrowRight, Eye, EyeOff, Shield, Users, Package, RefreshCw, Mail, Lock,
   SlidersHorizontal, Download, Printer, Search, Trash, MessageSquare, MessageCircle, Send, User,
-  Clock, Zap
+  Clock, Zap, Phone
 } from 'lucide-react';
 
 const API_BASE = import.meta.env.VITE_API_BASE || 
@@ -217,6 +217,52 @@ const GPS_COORDINATES = {
 // Customer support contact (phone calls only)
 const SUPPORT_PHONE = '+44 7456 066354';
 const SUPPORT_PHONE_LINK = 'tel:+447456066354';
+const SUPPORT_WHATSAPP_LINK = `https://wa.me/447456066354?text=${encodeURIComponent('Hello TXL Express, I need help with my shipment.')}`;
+
+// Call and WhatsApp buttons. layout: 'row' (side by side), 'stack' (full width, one above the other)
+const ContactButtons = ({ layout = 'row', size = 'md' }) => {
+  const pad = size === 'sm' ? '8px 14px' : '11px 20px';
+  const base = {
+    display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '8px', padding: pad, borderRadius: '8px',
+    fontWeight: 700, fontSize: size === 'sm' ? '0.82rem' : '0.92rem', textDecoration: 'none', border: 'none', cursor: 'pointer',
+    width: layout === 'stack' ? '100%' : 'auto', boxSizing: 'border-box'
+  };
+  return (
+    <div style={{ display: 'flex', flexDirection: layout === 'stack' ? 'column' : 'row', gap: '10px', flexWrap: 'wrap' }}>
+      <a href={SUPPORT_WHATSAPP_LINK} target="_blank" rel="noopener noreferrer" style={{ ...base, background: '#25D366', color: '#ffffff' }}>
+        <MessageCircle style={{ width: '17px', height: '17px' }} /> WhatsApp
+      </a>
+      <a href={SUPPORT_PHONE_LINK} style={{ ...base, background: '#0F172A', color: '#ffffff', border: '1px solid rgba(255,255,255,0.25)' }}>
+        <Phone style={{ width: '17px', height: '17px' }} /> Call {SUPPORT_PHONE}
+      </a>
+    </div>
+  );
+};
+
+// Help card shown inside the customer portal
+const SupportContactCard = () => (
+  <div style={{ background: '#ffffff', border: '1px solid #E2E8F0', borderRadius: '10px', padding: '16px 20px', marginBottom: '20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px', flexWrap: 'wrap' }}>
+    <div>
+      <div style={{ fontWeight: 700, color: '#0F172A', fontSize: '1rem' }}>Need help with your shipment?</div>
+      <div style={{ color: '#64748B', fontSize: '0.88rem', marginTop: '2px' }}>Call or message us on {SUPPORT_PHONE}, or use Support Chat.</div>
+    </div>
+    <ContactButtons />
+  </div>
+);
+
+// Always-visible shortcut in the bottom corner
+const FloatingContact = () => (
+  <div style={{ position: 'fixed', right: '16px', bottom: '16px', zIndex: 1500, display: 'flex', flexDirection: 'column', gap: '10px' }}>
+    <a href={SUPPORT_WHATSAPP_LINK} target="_blank" rel="noopener noreferrer" title={`WhatsApp ${SUPPORT_PHONE}`}
+      style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: '#25D366', color: '#ffffff', padding: '12px 18px', borderRadius: '999px', fontWeight: 700, fontSize: '0.88rem', textDecoration: 'none', boxShadow: '0 6px 18px rgba(0,0,0,0.25)' }}>
+      <MessageCircle style={{ width: '18px', height: '18px' }} /> WhatsApp
+    </a>
+    <a href={SUPPORT_PHONE_LINK} title={`Call ${SUPPORT_PHONE}`}
+      style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: '#0F172A', color: '#ffffff', padding: '12px 18px', borderRadius: '999px', fontWeight: 700, fontSize: '0.88rem', textDecoration: 'none', boxShadow: '0 6px 18px rgba(0,0,0,0.25)' }}>
+      <Phone style={{ width: '18px', height: '18px' }} /> Call us
+    </a>
+  </div>
+);
 
 // Ready-made shipment alerts the admin can switch on; the title and note stay editable
 const ALERT_PRESETS = {
@@ -3726,6 +3772,12 @@ export default function App() {
             </nav>
 
             <div className="sidebar-bottom-links" onClick={() => setMobileSidebarOpen(false)}>
+              {user.role === 'customer' && (
+                <div style={{ padding: '0 14px 12px' }}>
+                  <div style={{ fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.8px', textTransform: 'uppercase', color: '#64748B', marginBottom: '8px' }}>Need help?</div>
+                  <ContactButtons layout="stack" size="sm" />
+                </div>
+              )}
               {user.role === 'admin' && (
                 <a href="#dashboard" className="sidebar-link bottom-link" onClick={(e) => { e.preventDefault(); alert("Assistance request flagged. A representative will contact you shortly."); }}>
                   <Users className="nav-icon" /> Support
@@ -3764,6 +3816,11 @@ export default function App() {
                     <button className="btn-hero-primary" onClick={() => triggerNavigationWithFlash(user ? (user.role === 'admin' ? '#admin' : '#dashboard') : '#login')}>
                       {user ? 'Open My Portal' : 'Track Your Shipment'}
                     </button>
+                  </div>
+
+                  <div style={{ marginTop: '18px' }}>
+                    <div style={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.7)', marginBottom: '8px' }}>Questions? Contact us directly:</div>
+                    <ContactButtons />
                   </div>
 
                   <div className="hero-social-trust">
@@ -4112,6 +4169,7 @@ export default function App() {
                       <span style={{ fontSize: '0.78rem', opacity: 0.7 }}>Call us</span>
                       <span style={{ fontWeight: 700 }}>{SUPPORT_PHONE}</span>
                     </a>
+                    <div style={{ marginBottom: '12px' }}><ContactButtons size="sm" /></div>
                     <div className="footer-social-circles">
                       <button className="social-circle-btn"><Plane style={{width:'14px', height:'14px'}} /></button>
                       <button className="social-circle-btn"><Ship style={{width:'14px', height:'14px'}} /></button>
@@ -4199,6 +4257,8 @@ export default function App() {
           {/* CUSTOMER DASHBOARD VIEW */}
           {activeTab === 'dashboard' && user && (
             <section className="customer-dashboard">
+              <SupportContactCard />
+
               {customerShipments.map(s => <ShipmentAlertBanner key={s.id} shipment={s} />)}
 
               {/* Statistics Row */}
@@ -4252,7 +4312,7 @@ export default function App() {
               {/* Footer attribution */}
               <footer className="portal-footer-note select-none">
                 <p>
-                  Need help? Call us on{' '}
+                  Need help? Call or WhatsApp us on{' '}
                   <a href={SUPPORT_PHONE_LINK} style={{ fontWeight: 700 }}>{SUPPORT_PHONE}</a>
                   {' '}or use Support Chat.
                 </p>
@@ -6739,6 +6799,7 @@ export default function App() {
       )}
       
 
+      {((activeTab === 'home') || (user && user.role === 'customer' && ['dashboard', 'details', 'customer-messages', 'tracking'].includes(activeTab))) && <FloatingContact />}
     </div>
   );
 }

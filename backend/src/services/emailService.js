@@ -11,6 +11,7 @@ const getResendClient = () => {
 // Customer support number (phone calls only). Override with SUPPORT_PHONE in the environment.
 const SUPPORT_PHONE = process.env.SUPPORT_PHONE || '+44 7456 066354';
 const SUPPORT_PHONE_LINK = `tel:${SUPPORT_PHONE.replace(/[^+\d]/g, '')}`;
+const SUPPORT_WHATSAPP_LINK = `https://wa.me/${SUPPORT_PHONE.replace(/\D/g, '')}`;
 
 const escapeHtml = (s) => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
@@ -107,9 +108,9 @@ function buildHtmlEmail({ recipientName, title, message, trackingNumber, status,
         <!-- How to reach us (this mailbox is not monitored) -->
         <div style="margin-top: 28px; border: 1px solid #e2e8f0; border-radius: 4px; padding: 16px 20px; background-color: #F8FAFC;">
           <p style="${label}">Please do not reply to this email</p>
-          <p style="margin: 0 0 6px 0; font-size: 14px; color: #334155; line-height: 1.6;">This is an automated business mailbox and replies are not read. To reach us, call us or use the Support Chat in your customer portal.</p>
+          <p style="margin: 0 0 6px 0; font-size: 14px; color: #334155; line-height: 1.6;">This is an automated business mailbox and replies are not read. To reach us, call or message us on WhatsApp, or use the Support Chat in your customer portal.</p>
           <p style="margin: 0; font-size: 15px; font-weight: 700; color: ${NAVY};">
-            Call us: <a href="${SUPPORT_PHONE_LINK}" style="color: ${NAVY}; text-decoration: underline;">${SUPPORT_PHONE}</a>
+            Call or WhatsApp: <a href="${SUPPORT_PHONE_LINK}" style="color: ${NAVY}; text-decoration: underline;">${SUPPORT_PHONE}</a>&nbsp;&nbsp;<a href="${SUPPORT_WHATSAPP_LINK}" style="display: inline-block; background-color: #25D366; color: #ffffff; text-decoration: none; font-size: 13px; font-weight: 700; padding: 6px 12px; border-radius: 4px;">WhatsApp</a>
           </p>
         </div>
 
@@ -126,7 +127,7 @@ function buildHtmlEmail({ recipientName, title, message, trackingNumber, status,
       <div style="padding: 16px 20px; font-size: 12px; color: #64748b; text-align: center;">
         <p style="margin: 0 0 4px 0; font-weight: 700; color: ${NAVY};">TXL Express Global Logistics</p>
         <p style="margin: 0 0 4px 0;">Customer portal: <a href="${siteUrl}" style="color: ${NAVY}; text-decoration: underline;">${domain}</a></p>
-        <p style="margin: 0 0 10px 0;">Phone support: <a href="${SUPPORT_PHONE_LINK}" style="color: ${NAVY}; text-decoration: underline;">${SUPPORT_PHONE}</a></p>
+        <p style="margin: 0 0 10px 0;">Call or WhatsApp: <a href="${SUPPORT_PHONE_LINK}" style="color: ${NAVY}; text-decoration: underline;">${SUPPORT_PHONE}</a></p>
         <p style="margin: 0; color: #94a3b8;">&copy; ${new Date().getFullYear()} TXL Express Global Logistics. All rights reserved.</p>
       </div>
 
@@ -178,7 +179,7 @@ export async function sendEmail({ to, recipientName, subject, messageBody, templ
     alert: activeAlert
   });
 
-  const textContent = `Dear ${recipientName || 'Customer'},\n\n${messageBody}\n\n${activeAlert ? `ACTION REQUIRED: ${activeAlert.title}\n${activeAlert.note}\n\n` : ''}${credentials ? `YOUR TRACKING NUMBER (use it to access your portal): ${credentials.password}\n\n` : ''}${trackingCode ? `SHIPMENT DETAILS:\nTracking Code: ${trackingCode}\nStatus: ${status || 'IN TRANSIT'}\nRoute: ${origin || 'N/A'} -> ${destination || 'N/A'}\n` : ''}\nTrack Shipment: https://www.${domain}/#login\n\nTXL Express Global Logistics Services\nWebsite: https://www.${domain}/#login\n\nPLEASE DO NOT REPLY TO THIS EMAIL. This mailbox is not monitored.\nCall us on ${SUPPORT_PHONE} or use the Support Chat in your customer portal.`;
+  const textContent = `Dear ${recipientName || 'Customer'},\n\n${messageBody}\n\n${activeAlert ? `ACTION REQUIRED: ${activeAlert.title}\n${activeAlert.note}\n\n` : ''}${credentials ? `YOUR TRACKING NUMBER (use it to access your portal): ${credentials.password}\n\n` : ''}${trackingCode ? `SHIPMENT DETAILS:\nTracking Code: ${trackingCode}\nStatus: ${status || 'IN TRANSIT'}\nRoute: ${origin || 'N/A'} -> ${destination || 'N/A'}\n` : ''}\nTrack Shipment: https://www.${domain}/#login\n\nTXL Express Global Logistics Services\nWebsite: https://www.${domain}/#login\n\nPLEASE DO NOT REPLY TO THIS EMAIL. This mailbox is not monitored.\nCall or WhatsApp us on ${SUPPORT_PHONE} (${SUPPORT_WHATSAPP_LINK}) or use the Support Chat in your customer portal.`;
 
   try {
     const resend = new Resend(apiKey);
