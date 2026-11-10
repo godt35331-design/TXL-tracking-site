@@ -83,11 +83,12 @@ const STYLES = `
 .ib-placeholder { flex: 1; display: flex; align-items: center; justify-content: center; color: #94A3B8; font-size: 15px; }
 `;
 
-export default function InboxApp({ user, insiteMessages, API_BASE, onRefresh, onLogout }) {
+export default function InboxApp({ user, insiteMessages, emailMessages = [], API_BASE, onRefresh, onRefreshEmail, onLogout }) {
   const [selectedEmail, setSelectedEmail] = useState('');
   const [search, setSearch] = useState('');
   const [reply, setReply] = useState('');
   const [sending, setSending] = useState(false);
+  const [replyVia, setReplyVia] = useState('chat'); // chat | email
   const [pushState, setPushState] = useState('off'); // off | on | unsupported | blocked
   const [note, setNote] = useState('');
   const [installEvent, setInstallEvent] = useState(null);
@@ -96,22 +97,27 @@ export default function InboxApp({ user, insiteMessages, API_BASE, onRefresh, on
   const isStandalone = typeof window !== 'undefined' && ((window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || window.navigator.standalone === true);
   const isIOS = typeof navigator !== 'undefined' && /iPad|iPhone|iPod/.test(navigator.userAgent);
 
-  // Group the chat messages into one conversation per customer
+  // One conversation per customer, combining in-site chat and email messages
   const conversations = useMemo(() => {
     const groups = {};
-    (insiteMessages || []).forEach(m => {
+    const add = (m, kind) => {
       const email = (m.customerEmail || '').toLowerCase().trim();
       if (!email) return;
-      if (!groups[email]) groups[email] = { email, name: email.split('@')[0], messages: [], unread: 0, last: m };
+      const msg = { ...m, kind };
+      if (!groups[email]) groups[email] = { email, name: email.split('@')[0], messages: [], unread: 0, unreadChat: 0, unreadEmail: 0, last: msg };
       const g = groups[email];
       if (m.sender === 'customer' && m.customerName) g.name = m.customerName;
-      g.messages.push(m);
-      if (m.sender === 'customer' && !m.read) g.unread += 1;
-      if (new Date(m.createdAt || 0) > new Date(g.last.createdAt || 0)) g.last = m;
-    });
+      g.messages.push(msg);
+      if (m.sender === 'customer' && !m.read) {
+        g.unread += 1;
+        if (kind === 'chat') g.unreadChat += 1; else g.unreadEmail += 1;
+      }
+      if (new Date(m.createdAt || 0) > new Date(g.last.createdAt || 0)) g.last = msg;
+    };
+    (insiteMessages || []).forEach(m => add(m, 'chat'));
+    (emailMessages || []).forEach(m => add(m, 'email'));
     return Object.values(groups).sort((a, b) => new Date(b.last.createdAt || 0) - new Date(a.last.createdAt || 0));
-  }, [insiteMessages]);
-
+  }, [insiteMessages, emailMessages]);
   const filtered = conversations.filter(c => {
     const q = search.trim().toLowerCase();
     return !q || c.name.toLowerCase().includes(q) || c.email.includes(q);
@@ -126,14 +132,28 @@ export default function InboxApp({ user, insiteMessages, API_BASE, onRefresh, on
 
   // Opening a conversation marks the customer's messages as read
   useEffect(() => {
-    if (active && active.unread > 0) {
+    if (!active) return;
+    if (active.unreadChat > 0) {
       fetch(`${API_BASE}/insite-messages/read`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ customerEmail: active.email, reader: 'admin' })
       }).then(() => onRefresh && onRefresh()).catch(() => {});
     }
+    if (active.unreadEmail > 0) {
+      fetch(`${API_BASE}/messages/read`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ customerEmail: active.email })
+      }).then(() => onRefreshEmail && onRefreshEmail()).catch(() => {});
+    }
   }, [active && active.email, active && active.unread]);
+
+  // Reply the same way the customer last wrote (chat or email)
+  const lastCustomerKind = active
+    ? ([...active.messages].filter(m => m.sender === 'customer').sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))[0] || {}).kind
+    : null;
+  useEffect(() => { setReplyVia(lastCustomerKind === 'email' ? 'email' : 'chat'); }, [selectedEmail, lastCustomerKind]);
 
   // Register the service worker and check whether this device already gets notifications
   useEffect(() => {
@@ -211,14 +231,33 @@ export default function InboxApp({ user, insiteMessages, API_BASE, onRefresh, on
     if (!active || !body || sending) return;
     setSending(true);
     try {
-      const res = await fetch(`${API_BASE}/insite-messages/send`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ customerEmail: active.email, customerName: 'TXL Logistics Support', body })
-      });
+      let res;
+      if (replyVia === 'email') {
+        const lastEmail = [...active.messages].filter(m => m.kind === 'email').sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))[0];
+        res = await fetch(`${API_BASE}/admin/messages/reply`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            customerEmail: active.email,
+            customerName: active.name,
+            subject: lastEmail ? lastEmail.subject : 'Your TXL shipment',
+            body,
+            inReplyTo: lastEmail ? lastEmail.messageId : ''
+          })
+        });
+      } else {
+        res = await fetch(`${API_BASE}/insite-messages/send`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ customerEmail: active.email, customerName: 'TXL Logistics Support', body })
+        });
+      }
       if (res.ok) {
         setReply('');
-        onRefresh && onRefresh();
+        if (replyVia === 'email') { onRefreshEmail && onRefreshEmail(); } else { onRefresh && onRefresh(); }
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setNote(data.error || 'The reply could not be sent. Please try again.');
       }
     } finally {
       setSending(false);
@@ -304,6 +343,7 @@ export default function InboxApp({ user, insiteMessages, API_BASE, onRefresh, on
             <div className="ib-messages">
               {activeMessages.map((m, i) => (
                 <div key={m._id || i} className={`ib-bubble ${m.sender === 'admin' ? 'admin' : 'customer'}`}>
+                  {m.kind === 'email' && <span className="ib-time" style={{ marginTop: 0, marginBottom: 4, fontWeight: 700, opacity: 0.75 }}>EMAIL{m.subject ? `: ${m.subject}` : ''}</span>}
                   {m.body}
                   <span className="ib-time">{timeLabel(m.createdAt)}</span>
                 </div>
@@ -311,6 +351,11 @@ export default function InboxApp({ user, insiteMessages, API_BASE, onRefresh, on
               <div ref={endRef} />
             </div>
 
+            <div className="ib-quick" style={{ paddingBottom: 4 }}>
+              <span style={{ fontSize: 12, color: '#64748B', alignSelf: 'center', flexShrink: 0 }}>Reply by:</span>
+              <button className="ib-chip" style={replyVia === 'chat' ? { background: '#0F172A', color: '#ffffff', borderColor: '#0F172A' } : {}} onClick={() => setReplyVia('chat')}>Portal chat</button>
+              <button className="ib-chip" style={replyVia === 'email' ? { background: '#0F172A', color: '#ffffff', borderColor: '#0F172A' } : {}} onClick={() => setReplyVia('email')}>Email</button>
+            </div>
             <div className="ib-quick">
               {QUICK_REPLIES.map(q => (
                 <button key={q} className="ib-chip" onClick={() => send(q)}>{q}</button>

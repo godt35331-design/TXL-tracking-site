@@ -3580,8 +3580,10 @@ export default function App() {
       <InboxApp
         user={user}
         insiteMessages={insiteMessages}
+        emailMessages={messages}
         API_BASE={API_BASE}
         onRefresh={fetchInsiteMessages}
+        onRefreshEmail={fetchMessages}
         onLogout={handleLogout}
       />
     );
